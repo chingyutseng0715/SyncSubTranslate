@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  gateway:
+    build:
+      context: ..
+      dockerfile: gateway/Dockerfile
+    container_name: ai-interp-gateway
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./terms.json:/app/gateway/terms.json   # hot-reload terms without rebuild
+      - ../logs:/app/logs
+    # Audio device passthrough (Linux/WSL2 only)
+    # Comment out if running on macOS or if using a USB audio interface exposed differently
+    devices:
+      - /dev/snd:/dev/snd
+    privileged: true

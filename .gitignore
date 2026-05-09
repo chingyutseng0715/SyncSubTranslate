@@ -1,0 +1,12 @@
+# API keys — never commit
+gateway/.env
+
+# Runtime output
+logs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
