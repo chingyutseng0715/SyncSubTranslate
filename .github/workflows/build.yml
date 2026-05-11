@@ -47,7 +47,7 @@ jobs:
 
       # ── Build ─────────────────────────────────────────────────────────────
       - name: Build with PyInstaller
-        run: python -m PyInstaller build.spec --clean
+        run: python -m PyInstaller build.spec --clean --noconfirm
 
       # ── Package ───────────────────────────────────────────────────────────
       - name: Package (Windows)

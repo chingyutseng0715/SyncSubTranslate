@@ -4,6 +4,11 @@ gateway/.env
 # Runtime output
 logs/
 
+# PyInstaller build output — never commit these
+dist/
+build/
+*.spec.bak
+
 # Python
 __pycache__/
 *.pyc
