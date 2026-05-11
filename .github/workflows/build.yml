@@ -1,0 +1,74 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'        # triggers on tags like v1.0.0, v1.2.3
+  workflow_dispatch:  # also allows manual trigger from GitHub Actions tab
+
+permissions:
+  contents: write   # needed to create releases and upload assets
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: AIInterpretation-Windows.zip
+          - os: macos-latest
+            artifact: AIInterpretation-Mac.zip
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # ── macOS: install PortAudio before PyAudio ──────────────────────────
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install portaudio
+          CFLAGS="-I$(brew --prefix portaudio)/include" \
+          LDFLAGS="-L$(brew --prefix portaudio)/lib" \
+          pip install -r requirements.txt pyinstaller
+
+      # ── Windows: PyAudio wheel includes PortAudio DLL ────────────────────
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: pip install -r requirements.txt pyinstaller
+
+      # ── Build ─────────────────────────────────────────────────────────────
+      - name: Build with PyInstaller
+        run: python -m PyInstaller build.spec --clean
+
+      # ── Package ───────────────────────────────────────────────────────────
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist\AIInterpretation -DestinationPath AIInterpretation-Windows.zip
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: zip -r AIInterpretation-Mac.zip dist/AIInterpretation.app
+
+      # ── Upload artifact (always — visible in Actions tab) ─────────────────
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+      # ── Attach to GitHub Release (only when triggered by a tag) ──────────
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.artifact }}

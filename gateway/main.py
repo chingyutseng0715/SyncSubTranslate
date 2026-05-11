@@ -46,10 +46,17 @@ TRANSLATE_MODEL = os.getenv("TRANSLATE_MODEL", "qwen-plus")
 TRANSLATE_TIMEOUT = float(os.getenv("TRANSLATE_TIMEOUT", "4.0"))
 PORT = int(os.getenv("PORT", "8000"))
 
-BASE_DIR = Path(__file__).parent
+import sys as _sys
+if getattr(_sys, "frozen", False):
+    # PyInstaller 6: datas land in _MEIPASS (_internal/), logs beside the exe
+    BASE_DIR   = Path(_sys._MEIPASS) / "gateway"
+    SCREEN_PATH = Path(_sys._MEIPASS) / "screen"
+    LOG_DIR    = Path(_sys.executable).parent / "logs"
+else:
+    BASE_DIR   = Path(__file__).parent
+    SCREEN_PATH = BASE_DIR.parent / "screen"
+    LOG_DIR    = BASE_DIR.parent / "logs"
 TERMS_PATH = BASE_DIR / "terms.json"
-SCREEN_PATH = BASE_DIR.parent / "screen"
-LOG_DIR = BASE_DIR.parent / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 
 # ─── Global in-memory state ────────────────────────────────────────────────────
@@ -69,10 +76,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def _clear_logs() -> None:
+    for f in LOG_DIR.glob("runtime_*.jsonl"):
+        try:
+            f.unlink()
+            logger.info("Deleted log: %s", f.name)
+        except Exception as exc:
+            logger.error("Failed to delete log %s: %s", f.name, exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await on_startup()
     yield
+    _clear_logs()  # gateway shutdown → wipe session logs
 
 
 app = FastAPI(title="AI Interpretation Gateway", lifespan=lifespan)
@@ -368,6 +385,12 @@ async def health():
 async def get_terms():
     with _terms_lock:
         return {"version": _terms_version, "terms": dict(_terms)}
+
+
+@app.post("/logs/clear")
+async def clear_logs_endpoint():
+    _clear_logs()
+    return {"ok": True}
 
 
 # ─── Startup ────────────────────────────────────────────────────────────────────
