@@ -1,9 +1,29 @@
+import subprocess
+import sys
 import time
 
 import customtkinter as ctk
 
 from app import icon
-from app.heartbeat import HeartbeatReceiver, HEARTBEAT_TIMEOUT
+from app.heartbeat import HeartbeatReceiver, HEARTBEAT_PORT, HEARTBEAT_TIMEOUT
+
+
+def _try_open_firewall() -> None:
+    """Best-effort: add a Windows Firewall inbound rule for the UDP heartbeat port."""
+    if sys.platform != "win32":
+        return
+    try:
+        kwargs = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
+        subprocess.run(
+            ["netsh", "advfirewall", "firewall", "add", "rule",
+             f"name=AIInterpretation-Monitor-UDP{HEARTBEAT_PORT}",
+             "protocol=UDP", "dir=in",
+             f"localport={HEARTBEAT_PORT}",
+             "action=allow", "enable=yes"],
+            capture_output=True, timeout=5, **kwargs,
+        )
+    except Exception:
+        pass
 
 COLS = 4
 CARD_W = 180
@@ -24,8 +44,10 @@ class MonitorWindow(ctk.CTkToplevel):
         self._rooms: dict[str, dict] = {}
         self._cards: dict[str, dict] = {}
 
+        _try_open_firewall()
         self._receiver = HeartbeatReceiver(self._on_heartbeat)
         self._receiver.start()
+        self.after(20000, self._check_firewall_warning)
 
         self._build()
         self._center()
@@ -63,7 +85,7 @@ class MonitorWindow(ctk.CTkToplevel):
         self._empty_lbl = ctk.CTkLabel(
             self._grid,
             text="No rooms detected yet\n\nMake sure service laptops are on the same network and have started the service",
-            font=ctk.CTkFont(size=13), text_color="gray",
+            font=ctk.CTkFont(size=13), text_color="gray", justify="center",
         )
         self._empty_lbl.grid(row=0, column=0, columnspan=COLS, pady=60)
 
@@ -160,6 +182,21 @@ class MonitorWindow(ctk.CTkToplevel):
             text=f"OK: {ok}  ·  Issues: {problems}  ·  Total: {total}",
             text_color=color,
         )
+
+    # ── Firewall warning ──────────────────────────────────────────────────────
+
+    def _check_firewall_warning(self) -> None:
+        if len(self._rooms) == 0 and self._empty_lbl.winfo_ismapped():
+            msg = (
+                "No rooms detected yet\n\n"
+                "If service laptops are running and on the same network,\n"
+                "your firewall may be blocking UDP port 47474.\n\n"
+            )
+            if sys.platform == "win32":
+                msg += "Fix: Run this app as Administrator once, or go to\nWindows Firewall → Allow an app → add AIInterpretation."
+            else:
+                msg += "Fix: Check macOS firewall settings under\nSystem Settings → Network → Firewall."
+            self._empty_lbl.configure(text=msg, text_color="#facc15")
 
     # ── Tick ──────────────────────────────────────────────────────────────────
 
