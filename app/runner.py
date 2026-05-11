@@ -18,7 +18,7 @@ class GatewayRunner:
     def running(self) -> bool:
         return self._proc is not None and self._proc.poll() is None
 
-    def start(self, device_index: int | None, api_key: str = "", on_line: Callable[[str], None] | None = None) -> None:
+    def start(self, device_index: int | None, api_key: str = "", lang_pair: str = "zh-en", on_line: Callable[[str], None] | None = None) -> None:
         if self.running:
             return
 
@@ -26,6 +26,7 @@ class GatewayRunner:
         env = os.environ.copy()
         if api_key:
             env["DASHSCOPE_API_KEY"] = api_key
+        env["LANG_PAIR"] = lang_pair
 
         if getattr(sys, "frozen", False):
             # Bundled exe: relaunch self with --gateway flag

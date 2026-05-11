@@ -40,7 +40,7 @@ class ServiceWindow(ctk.CTkToplevel):
         self._health_stop = threading.Event()
 
         self._build()
-        self._center(520, 390)
+        self._center(520, 430)
         self._refresh_mics()
         icon.apply(self)
         self.lift()
@@ -80,16 +80,28 @@ class ServiceWindow(ctk.CTkToplevel):
                                        placeholder_text="sk-xxxxxxxxxxxxxxxxxxxx")
         self._api_entry.grid(row=1, column=1, columnspan=2, sticky="ew", pady=8)
 
+        # Language pair
+        ctk.CTkLabel(form, text="Language", anchor="w", width=100).grid(
+            row=2, column=0, sticky="w", pady=8, padx=(0, 12)
+        )
+        self._lang_var = ctk.StringVar(value="Chinese ↔ English")
+        self._lang_menu = ctk.CTkOptionMenu(
+            form, variable=self._lang_var,
+            values=["Chinese ↔ English", "Chinese ↔ Japanese"],
+            dynamic_resizing=False,
+        )
+        self._lang_menu.grid(row=2, column=1, columnspan=2, sticky="ew", pady=8)
+
         # Microphone
         ctk.CTkLabel(form, text="Microphone", anchor="w", width=100).grid(
-            row=2, column=0, sticky="w", pady=8, padx=(0, 12)
+            row=3, column=0, sticky="w", pady=8, padx=(0, 12)
         )
         self._mic_var = ctk.StringVar(value="Scanning...")
         self._mic_menu = ctk.CTkOptionMenu(
             form, variable=self._mic_var, values=["Scanning..."], dynamic_resizing=False
         )
-        self._mic_menu.grid(row=2, column=1, sticky="ew", pady=8, padx=(0, 8))
-        ctk.CTkButton(form, text="↻", width=36, command=self._refresh_mics).grid(row=2, column=2)
+        self._mic_menu.grid(row=3, column=1, sticky="ew", pady=8, padx=(0, 8))
+        ctk.CTkButton(form, text="↻", width=36, command=self._refresh_mics).grid(row=3, column=2)
 
         # Action buttons
         btn_row = ctk.CTkFrame(self, fg_color="transparent")
@@ -157,8 +169,12 @@ class ServiceWindow(ctk.CTkToplevel):
         else:
             self._start()
 
+    def _lang_pair_code(self) -> str:
+        return "zh-ja" if "Japanese" in self._lang_var.get() else "zh-en"
+
     def _start(self) -> None:
-        self._runner.start(self._selected_index(), api_key=self._api_var.get().strip())
+        self._runner.start(self._selected_index(), api_key=self._api_var.get().strip(),
+                           lang_pair=self._lang_pair_code())
         self._health_stop.clear()
         threading.Thread(target=self._poll_health, daemon=True, name="health-poll").start()
         self._sender.start(self._room_var.get(), self._get_status)
@@ -167,6 +183,7 @@ class ServiceWindow(ctk.CTkToplevel):
         self._status_lbl.configure(text="● Starting...", text_color="#facc15")
         self._room_entry.configure(state="disabled")
         self._api_entry.configure(state="disabled")
+        self._lang_menu.configure(state="disabled")
         self._mic_menu.configure(state="disabled")
 
     def _stop(self) -> None:
@@ -179,6 +196,7 @@ class ServiceWindow(ctk.CTkToplevel):
         self._status_lbl.configure(text="● Stopped", text_color="gray")
         self._room_entry.configure(state="normal")
         self._api_entry.configure(state="normal")
+        self._lang_menu.configure(state="normal")
         self._mic_menu.configure(state="normal")
 
     # ── Health polling (for heartbeat payload) ────────────────────────────────

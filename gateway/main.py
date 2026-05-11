@@ -45,6 +45,7 @@ ASR_MODEL = "paraformer-realtime-v2"
 TRANSLATE_MODEL = os.getenv("TRANSLATE_MODEL", "qwen-plus")
 TRANSLATE_TIMEOUT = float(os.getenv("TRANSLATE_TIMEOUT", "4.0"))
 PORT = int(os.getenv("PORT", "8000"))
+LANG_PAIR = os.getenv("LANG_PAIR", "zh-en")  # "zh-en" or "zh-ja"
 
 import sys as _sys
 if getattr(_sys, "frozen", False):
@@ -133,12 +134,16 @@ def _start_terms_watcher() -> None:
 def _system_prompt() -> str:
     with _terms_lock:
         terms_json = json.dumps(_terms, ensure_ascii=False)
+    if LANG_PAIR == "zh-ja":
+        direction = "原文中文则译日语，原文日语则译中"
+    else:
+        direction = "原文中文则译英，原文英文则译中"
     return (
         "你是大型国际会议实时同传字幕引擎。请严格按以下要求翻译：\n"
         "1. 保持简洁，适合大屏显示（每句≤15词）\n"
         "2. 遵守术语表，专有名词/人名/机构名必须精准\n"
         "3. 不解释、不增补、不改变原意\n"
-        "4. 原文中文则译英，原文英文则译中\n"
+        f"4. {direction}\n"
         f"【术语表】{terms_json}"
     )
 
@@ -320,12 +325,13 @@ def _run_asr_loop() -> None:
                 dev_info["index"], dev_info["name"], native_rate, native_channels,
             )
 
+            lang_hints = ["zh", "ja"] if LANG_PAIR == "zh-ja" else ["zh", "en"]
             callback = _ASRCallback()
             recognition = Recognition(
                 model=ASR_MODEL,
                 format="pcm",
                 sample_rate=SAMPLE_RATE,
-                language_hints=["zh", "en"],
+                language_hints=lang_hints,
                 punctuation_prediction=True,
                 inverse_text_normalization=True,
                 callback=callback,
