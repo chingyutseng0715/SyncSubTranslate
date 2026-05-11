@@ -1,169 +1,149 @@
 # AI Conference Real-time Interpretation System
-# AI 会议实时同传字幕系统
 
-Real-time bilingual (Chinese ↔ English) captioning for conference big screens.  
+Real-time bilingual captioning for conference big screens.  
 Microphone → Alibaba Cloud ASR → Qwen LLM translation → WebSocket → browser display.
+
+---
+
+## Download
+
+Go to the [Releases](../../releases) page and download the latest version for your platform:
+
+| Platform | File |
+|----------|------|
+| Windows | `AIInterpretation-Windows.zip` |
+| macOS | `AIInterpretation-Mac.zip` |
+
+**Windows:** Extract the zip, open the `AIInterpretation` folder, and double-click `AIInterpretation.exe`.  
+**macOS:** Extract the zip and open `AIInterpretation.app`. If macOS blocks it, go to System Settings → Privacy & Security → click "Open Anyway".
+
+---
+
+## How It Works
+
+On launch you choose a role for the current computer:
+
+### Subtitle Service
+Runs on the laptop connected to the conference microphone.
+
+1. Enter a **Room Name** (e.g. "Main Hall")
+2. Paste your **DashScope API key** (masked with `*`)
+3. Select **Language**: Chinese ↔ English or Chinese ↔ Japanese
+4. Pick the correct **Microphone** from the dropdown
+5. Click **Start Service**
+6. Click **Open Screen** — this opens the subtitle display in your browser
+7. Connect the browser to the big screen (fullscreen with double-click)
+
+### Monitor Center
+Runs on the organizer's laptop. Shows a live dashboard of every room on the same network — green dot means online, red means no response for 15+ seconds.
+
+No configuration needed. All service laptops are discovered automatically via UDP broadcast.
+
+> **Firewall note (Windows):** The app will attempt to add a Windows Firewall rule automatically. If rooms still don't appear after 20 seconds, run the app as Administrator once, or allow it manually under Windows Firewall → Allow an app.
+
+---
+
+## API Key
+
+This app uses Alibaba Cloud DashScope — one key covers both speech recognition and translation.
+
+1. Sign up at [dashscope.console.aliyun.com](https://dashscope.console.aliyun.com/)
+2. Go to **API Keys** → **Create API Key**
+3. Paste the key into the app when starting the Subtitle Service
+
+New accounts receive ¥200–500 in free credits, which is more than enough for a full conference day.
+
+**Estimated cost:**
+- ASR: ¥0.018 / minute
+- Translation: ¥0.035 / 1,000 characters
 
 ---
 
 ## Features
 
-- **Real-time ASR** using Alibaba Cloud `paraformer-realtime-v2` (Chinese/English mixed)
-- **Partial/Final state machine** — partial results shown grayed while speaking; final locks in with English translation
-- **Qwen LLM translation** with conference terminology injection
-- **Terminology hot-reload** — edit `gateway/terms.json` while running, changes apply in under 60 seconds, no restart needed
-- **Auto-reconnect** — screen and ASR both recover automatically from network drops
-- **L2 fallback** — if translation times out (>4s), shows original Chinese + `[译文生成中...]` automatically
-- **Single-file screen** — `screen/index.html`, open in any browser, double-click for fullscreen
-- **No database** — all state is in-memory; subtitle logs written to `logs/` as JSONL
-
----
-
-## Project Structure
-
-```
-.
-├── gateway/
-│   ├── main.py            # FastAPI backend: audio capture, ASR, translation, WebSocket
-│   ├── terms.json         # Terminology dictionary {Chinese: English} — hot-reloadable
-│   ├── .env               # API keys and config (not committed)
-│   ├── docker-compose.yml # One-command Docker deploy
-│   └── Dockerfile
-├── screen/
-│   └── index.html         # Big-screen subtitle display (open in browser)
-├── docs/
-│   ├── 部署SOP.md         # On-site setup and operation guide
-│   └── 应急预案手册.md     # L1/L2/L3 incident response playbook
-├── logs/                  # Auto-created; runtime subtitle logs (JSONL)
-├── requirements.txt
-└── .gitignore
-```
-
----
-
-## Requirements
-
-- Python 3.10+
-- Alibaba Cloud DashScope API key (covers both ASR and Qwen translation)
-  - Get one at: https://dashscope.console.aliyun.com/ → API Keys
-  - New accounts receive ¥200–500 free credits (covers the full event)
-
----
-
-## Setup
-
-### 1. Install dependencies
-
-**Windows** — PyAudio requires PortAudio. If `pip install pyaudio` fails:
-```bash
-pip install pipwin
-pipwin install pyaudio
-```
-
-Then install the rest:
-```bash
-pip install -r requirements.txt
-```
-
-### 2. Configure API key
-
-Fill in `gateway/.env`:
-```
-DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxx
-```
-
-### 3. (Optional) Select audio input device
-
-List available devices:
-```bash
-python -c "import pyaudio; p=pyaudio.PyAudio(); [print(i, p.get_device_info_by_index(i)['name']) for i in range(p.get_device_count()) if p.get_device_info_by_index(i)['maxInputChannels'] > 0]"
-```
-
-Set the index in `gateway/.env`:
-```
-PYAUDIO_DEVICE_INDEX=1
-```
-
-Leave blank to use the system default input.
-
-### 4. Run
-
-```bash
-python gateway/main.py
-```
-
-### 5. Open the screen
-
-Open `http://localhost:8000/` in the browser on the display machine.  
-Double-click anywhere for fullscreen.
-
----
-
-## Testing Without a Microphone
-
-```bash
-# Start gateway without audio capture
-set DISABLE_AUDIO=1 && python gateway/main.py
-```
-
-Then push test subtitles from another terminal:
-```python
-import asyncio, websockets, json
-
-async def demo():
-    async with websockets.connect('ws://localhost:8000/ws') as ws:
-        await ws.send(json.dumps({'status': 'partial', 'zh': '欢迎来到国创中心大会', 'en': '', 'locked': False}))
-        import time; time.sleep(2)
-        await ws.send(json.dumps({'status': 'final', 'zh': '欢迎来到国创中心大会。', 'en': 'Welcome to the National Innovation Center Conference.', 'locked': True}))
-
-asyncio.run(demo())
-```
-
----
-
-## Terminology Hot-Reload
-
-Edit `gateway/terms.json` at any time while the gateway is running:
-```json
-{
-  "国创中心": "National Innovation Center",
-  "新质生产力": "new quality productive forces"
-}
-```
-Changes are picked up automatically within ~15 seconds. No restart required.
-
----
-
-## Configuration Reference (`gateway/.env`)
-
-| Variable | Default | Description |
-|---|---|---|
-| `DASHSCOPE_API_KEY` | *(required)* | Alibaba Cloud DashScope key |
-| `TRANSLATE_MODEL` | `qwen-plus` | `qwen-turbo` / `qwen-plus` / `qwen-max` |
-| `TRANSLATE_TIMEOUT` | `4.0` | Seconds before L2 fallback kicks in |
-| `PORT` | `8000` | HTTP and WebSocket port |
-| `DISABLE_AUDIO` | *(unset)* | Set to `1` to disable mic (test mode) |
-| `PYAUDIO_DEVICE_INDEX` | *(system default)* | Audio input device index |
-
----
-
-## Docker (Linux / WSL2)
-
-```bash
-cd gateway
-docker-compose up -d
-```
-
-Audio device passthrough requires Linux. See `gateway/docker-compose.yml` for device configuration.
+- Real-time ASR via `paraformer-realtime-v2` (Chinese/English or Chinese/Japanese mixed input)
+- Partial results shown live while speaking; final sentence locks in with translation
+- Qwen LLM translation with conference terminology injection
+- Terminology hot-reload — edit `gateway/terms.json` while running, applies within ~15 seconds, no restart needed
+- Auto-reconnect — screen and ASR both recover automatically from network drops
+- L2 fallback — if translation times out (>4s), shows original Chinese automatically while retrying
+- Monitor Center — single dashboard for all rooms over LAN, no server required
 
 ---
 
 ## Fallback Levels
 
 | Level | Trigger | Behaviour |
-|---|---|---|
-| L1 | Normal | AI bilingual captions, full pipeline |
-| L2 | Translation timeout or API rate limit | Shows Chinese original + `[译文生成中...]`, resumes automatically |
-| L3 | ASR disconnect / network loss | Screen shows `● 重连中...`, gateway auto-restarts ASR (3s backoff) |
+|-------|---------|-----------|
+| L1 | Normal | Full AI bilingual captions |
+| L2 | Translation timeout or API rate limit | Shows Chinese original, resumes automatically |
+| L3 | ASR disconnect / network loss | Screen holds last subtitle, gateway auto-restarts ASR (3s backoff) |
 
-See `docs/应急预案手册.md` for manual intervention procedures.
+---
+
+## Terminology Customization
+
+Edit `gateway/terms.json` at any time while the service is running:
+```json
+{
+  "国创中心": "National Innovation Center",
+  "新质生产力": "new quality productive forces"
+}
+```
+Changes are detected automatically within ~15 seconds. No restart required.
+
+---
+
+## Advanced: Run from Source
+
+Requires Python 3.10+ and an Alibaba Cloud DashScope API key.
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the desktop app
+python -m app
+```
+
+**macOS — PyAudio setup:**
+```bash
+brew install portaudio
+pip install -r requirements.txt
+```
+
+**Test without a microphone:**
+```bash
+set DISABLE_AUDIO=1 && python -m app   # Windows
+DISABLE_AUDIO=1 python -m app          # macOS / Linux
+```
+
+---
+
+## Build from Source
+
+Requires PyInstaller:
+```bash
+pip install pyinstaller
+python -m PyInstaller build.spec --clean --noconfirm
+```
+
+Output is in `dist/AIInterpretation/` (Windows) or `dist/AIInterpretation.app` (macOS).
+
+Automated builds for both platforms run via GitHub Actions on every version tag (`v*`).
+
+---
+
+## Configuration Reference
+
+These environment variables can be set in `gateway/.env` for advanced use:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DASHSCOPE_API_KEY` | *(required)* | Alibaba Cloud DashScope key |
+| `LANG_PAIR` | `zh-en` | Language pair: `zh-en` or `zh-ja` |
+| `TRANSLATE_MODEL` | `qwen-plus` | Qwen model: `qwen-turbo` / `qwen-plus` / `qwen-max` |
+| `TRANSLATE_TIMEOUT` | `4.0` | Seconds before L2 fallback |
+| `PORT` | `8000` | HTTP and WebSocket port |
+| `DISABLE_AUDIO` | *(unset)* | Set to `1` to disable microphone (test mode) |
+| `PYAUDIO_DEVICE_INDEX` | *(system default)* | Audio input device index |
