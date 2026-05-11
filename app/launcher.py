@@ -56,7 +56,12 @@ class LauncherWindow(ctk.CTkToplevel):
         ).pack(fill="x")
 
     def _go_service(self) -> None:
-        from app.service import ServiceWindow
+        try:
+            from app.service import ServiceWindow
+        except Exception as e:
+            import tkinter.messagebox as mb
+            mb.showerror("Failed to open Subtitle Service", str(e))
+            return
         self.withdraw()
         ServiceWindow(self.root, self)
 

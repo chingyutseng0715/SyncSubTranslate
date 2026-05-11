@@ -5,7 +5,12 @@ import urllib.request
 import webbrowser
 
 import customtkinter as ctk
-import pyaudio
+
+try:
+    import pyaudio
+    _PYAUDIO_OK = True
+except Exception:
+    _PYAUDIO_OK = False
 
 from app import icon
 from app.heartbeat import HeartbeatSender
@@ -122,15 +127,16 @@ class ServiceWindow(ctk.CTkToplevel):
 
     def _refresh_mics(self) -> None:
         devices: list[tuple[int, str]] = []
-        try:
-            p = pyaudio.PyAudio()
-            for i in range(p.get_device_count()):
-                info = p.get_device_info_by_index(i)
-                if int(info["maxInputChannels"]) > 0:
-                    devices.append((i, info["name"]))
-            p.terminate()
-        except Exception:
-            pass
+        if _PYAUDIO_OK:
+            try:
+                p = pyaudio.PyAudio()
+                for i in range(p.get_device_count()):
+                    info = p.get_device_info_by_index(i)
+                    if int(info["maxInputChannels"]) > 0:
+                        devices.append((i, info["name"]))
+                p.terminate()
+            except Exception:
+                pass
         self._mic_devices = devices
         names = [f"[{i}] {name}" for i, name in devices] or ["(No microphone detected)"]
         self._mic_menu.configure(values=names)
