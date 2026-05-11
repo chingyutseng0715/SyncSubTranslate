@@ -39,6 +39,10 @@ class GatewayRunner:
             cmd = [sys.executable, str(GATEWAY_SCRIPT)]
             cwd = str(GATEWAY_SCRIPT.parent)
 
+        kwargs = {}
+        if sys.platform == "win32":
+            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+
         self._proc = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
@@ -48,6 +52,7 @@ class GatewayRunner:
             errors="replace",
             env=env,
             cwd=cwd,
+            **kwargs,
         )
         threading.Thread(
             target=self._stream, args=(on_line,), daemon=True, name="gw-log"
