@@ -106,6 +106,9 @@ class MonitorWindow(ctk.CTkToplevel):
 
     def _apply_heartbeat(self, payload: dict) -> None:
         room = payload.get("room") or payload.get("ip", "Unknown")
+        if payload.get("status") == "stopped":
+            self._remove_room(room)
+            return
         self._rooms[room] = {
             "ip": payload.get("ip", ""),
             "status": payload.get("status", "ok"),
@@ -119,6 +122,18 @@ class MonitorWindow(ctk.CTkToplevel):
                 self._empty_lbl.grid_remove()
         self._refresh_card(room)
         self._refresh_summary()
+
+    def _remove_room(self, room: str) -> None:
+        self._rooms.pop(room, None)
+        if room in self._cards:
+            self._cards[room]["frame"].destroy()
+            del self._cards[room]
+            for idx, card in enumerate(self._cards.values()):
+                r, c = divmod(idx, COLS)
+                card["frame"].grid(row=r + 1, column=c, padx=6, pady=6, sticky="nsew")
+        self._refresh_summary()
+        if not self._rooms and self._empty_lbl.winfo_exists():
+            self._empty_lbl.grid(row=0, column=0, columnspan=COLS, pady=60)
 
     # ── Card management ───────────────────────────────────────────────────────
 

@@ -42,7 +42,7 @@ SAMPLE_WIDTH = 2          # 16-bit PCM
 FRAME_BYTES = 3200        # 1600 samples = ~100ms at 16kHz/16bit/mono
 
 ASR_MODEL = "paraformer-realtime-v2"
-TRANSLATE_MODEL = os.getenv("TRANSLATE_MODEL", "qwen-plus")
+TRANSLATE_MODEL = os.getenv("TRANSLATE_MODEL", "qwen-max")
 TRANSLATE_TIMEOUT = float(os.getenv("TRANSLATE_TIMEOUT", "4.0"))
 PORT = int(os.getenv("PORT", "8000"))
 LANG_PAIR = os.getenv("LANG_PAIR", "zh-en")  # "zh-en" or "zh-ja"
@@ -135,16 +135,21 @@ def _system_prompt() -> str:
     with _terms_lock:
         terms_json = json.dumps(_terms, ensure_ascii=False)
     if LANG_PAIR == "zh-ja":
-        direction = "原文中文则译日语，原文日语则译中"
+        direction = (
+            "【翻译方向】严格限定为中文↔日语，任何情况下严禁输出英文。\n"
+            "原文为中文时必须输出日语；原文为日语时必须输出中文。"
+        )
+        terms_note = "\n（注：术语表为中英对照参考，专有名词请按对应含义译为目标语言，勿直接照搬英文）"
     else:
-        direction = "原文中文则译英，原文英文则译中"
+        direction = "【翻译方向】中文↔英语。原文中文则译英，原文英文则译中。"
+        terms_note = ""
     return (
         "你是大型国际会议实时同传字幕引擎。请严格按以下要求翻译：\n"
         "1. 保持简洁，适合大屏显示（每句≤15词）\n"
         "2. 遵守术语表，专有名词/人名/机构名必须精准\n"
         "3. 不解释、不增补、不改变原意\n"
         f"4. {direction}\n"
-        f"【术语表】{terms_json}"
+        f"【术语表】{terms_json}{terms_note}"
     )
 
 
