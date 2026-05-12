@@ -40,8 +40,9 @@ a = Analysis(
         "anyio.streams.memory",
         # watchdog
         "watchdog.observers", "watchdog.observers.polling", "watchdog.events",
-        # dashscope
+        # dashscope / dotenv
         "dashscope", "dashscope.audio.asr",
+        "dotenv",
         # numpy / pyaudio / PIL
         "numpy", "numpy.core._methods", "numpy.lib.format",
         "pyaudio",

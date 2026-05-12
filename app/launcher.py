@@ -66,6 +66,16 @@ class LauncherWindow(ctk.CTkToplevel):
         ServiceWindow(self.root, self)
 
     def _go_monitor(self) -> None:
-        from app.monitor import MonitorWindow
+        try:
+            from app.monitor import MonitorWindow
+        except Exception as e:
+            import tkinter.messagebox as mb
+            mb.showerror("Failed to open Monitor Center", str(e))
+            return
         self.withdraw()
-        MonitorWindow(self.root, self)
+        try:
+            MonitorWindow(self.root, self)
+        except Exception as e:
+            import tkinter.messagebox as mb
+            self.deiconify()
+            mb.showerror("Failed to open Monitor Center", str(e))

@@ -53,6 +53,11 @@ class HeartbeatSender:
                 except Exception:
                     pass
                 self._stop.wait(HEARTBEAT_INTERVAL)
+            goodbye = {"room": room, "ip": _local_ip(), "status": "stopped", "ws_clients": 0, "terms_version": 0}
+            try:
+                sock.sendto(json.dumps(goodbye).encode(), ("255.255.255.255", HEARTBEAT_PORT))
+            except Exception:
+                pass
         finally:
             sock.close()
 
