@@ -16,7 +16,7 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            artifact: AIInterpretation-Windows.zip
+            artifact: AIInterpretation-Windows.exe
           - os: macos-latest
             artifact: AIInterpretation-Mac.zip
 
@@ -53,7 +53,7 @@ jobs:
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Compress-Archive -Path dist\AIInterpretation -DestinationPath AIInterpretation-Windows.zip
+        run: Copy-Item dist\AIInterpretation.exe AIInterpretation-Windows.exe
 
       - name: Package (macOS)
         if: runner.os == 'macOS'

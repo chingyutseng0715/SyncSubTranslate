@@ -209,9 +209,9 @@
       const rows = recordedLines.map(r => {
         const t = r.ts ? new Date(r.ts).toLocaleTimeString('zh-CN') : '';
         return `<tr>
-          <td style="color:#888;font-size:12px;white-space:nowrap;padding:6px 10px;border-bottom:1px solid #eee;">${t}</td>
-          <td style="font-size:15px;padding:6px 10px;border-bottom:1px solid #eee;">${r.zh}</td>
-          <td style="font-size:14px;color:#1d4ed8;padding:6px 10px;border-bottom:1px solid #eee;">${r.en}</td>
+          <td style="color:#888;font-size:12px;white-space:nowrap;padding:6px 10px;border-bottom:1px solid #eee;">${esc(t)}</td>
+          <td style="font-size:15px;padding:6px 10px;border-bottom:1px solid #eee;">${esc(r.zh)}</td>
+          <td style="font-size:14px;color:#1d4ed8;padding:6px 10px;border-bottom:1px solid #eee;">${esc(r.en)}</td>
         </tr>`;
       }).join('');
       const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -222,7 +222,7 @@
 <thead><tr>
   <th style="text-align:left;padding:6px 10px;border-bottom:2px solid #ccc;">时间</th>
   <th style="text-align:left;padding:6px 10px;border-bottom:2px solid #ccc;">中文</th>
-  <th style="text-align:left;padding:6px 10px;border-bottom:2px solid #ccc;">English</th>
+  <th style="text-align:left;padding:6px 10px;border-bottom:2px solid #ccc;">译文</th>
 </tr></thead>
 <tbody>${rows}</tbody>
 </table></body></html>`;

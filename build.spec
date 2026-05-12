@@ -78,10 +78,10 @@ exe = EXE(
     entitlements_file=None,
 )
 
-# ── macOS: wrap the onedir folder into a double-clickable .app bundle ─────────
+# ── macOS: wrap the onefile exe into a double-clickable .app bundle ───────────
 if sys.platform == "darwin":
     app = BUNDLE(
-        coll,
+        exe,
         name=f"{APP_NAME}.app",
         icon=None,
         bundle_identifier=f"com.{APP_NAME.lower()}",

@@ -239,6 +239,7 @@ async def _process_loop() -> None:
                     "en": en,
                     "locked": True,
                     "ts": datetime.now().isoformat(),
+                    "terms_version": _terms_version,
                 }
                 _write_log(payload)
             else:
