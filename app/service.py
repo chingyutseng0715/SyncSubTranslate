@@ -40,7 +40,7 @@ class ServiceWindow(ctk.CTkToplevel):
         self._health_stop = threading.Event()
 
         self._build()
-        self._center(520, 430)
+        self._center(520, 490)
         self._refresh_mics()
         icon.apply(self)
         self.lift()
@@ -102,6 +102,17 @@ class ServiceWindow(ctk.CTkToplevel):
         )
         self._mic_menu.grid(row=3, column=1, sticky="ew", pady=8, padx=(0, 8))
         ctk.CTkButton(form, text="↻", width=36, command=self._refresh_mics).grid(row=3, column=2)
+
+        # Monitor IP (optional)
+        ctk.CTkLabel(form, text="Monitor IP", anchor="w", width=100).grid(
+            row=4, column=0, sticky="w", pady=8, padx=(0, 12)
+        )
+        self._monitor_var = ctk.StringVar()
+        self._monitor_entry = ctk.CTkEntry(
+            form, textvariable=self._monitor_var,
+            placeholder_text="Optional — e.g. 192.168.1.10",
+        )
+        self._monitor_entry.grid(row=4, column=1, columnspan=2, sticky="ew", pady=8)
 
         # Action buttons
         btn_row = ctk.CTkFrame(self, fg_color="transparent")
@@ -173,11 +184,12 @@ class ServiceWindow(ctk.CTkToplevel):
         return "zh-ja" if "Japanese" in self._lang_var.get() else "zh-en"
 
     def _start(self) -> None:
+        monitor_ip = self._monitor_var.get().strip() or None
         self._runner.start(self._selected_index(), api_key=self._api_var.get().strip(),
                            lang_pair=self._lang_pair_code())
         self._health_stop.clear()
         threading.Thread(target=self._poll_health, daemon=True, name="health-poll").start()
-        self._sender.start(self._room_var.get(), self._get_status)
+        self._sender.start(self._room_var.get(), self._get_status, target_ip=monitor_ip)
         self._start_btn.configure(text="⏹  Stop Service", fg_color=_BTN_RED, hover_color=_BTN_RED_HOVER)
         self._browser_btn.configure(state="normal")
         self._status_lbl.configure(text="● Starting...", text_color="#facc15")
@@ -185,6 +197,7 @@ class ServiceWindow(ctk.CTkToplevel):
         self._api_entry.configure(state="disabled")
         self._lang_menu.configure(state="disabled")
         self._mic_menu.configure(state="disabled")
+        self._monitor_entry.configure(state="disabled")
 
     def _stop(self) -> None:
         self._runner.stop()
@@ -198,6 +211,7 @@ class ServiceWindow(ctk.CTkToplevel):
         self._api_entry.configure(state="normal")
         self._lang_menu.configure(state="normal")
         self._mic_menu.configure(state="normal")
+        self._monitor_entry.configure(state="normal")
 
     # ── Health polling (for heartbeat payload) ────────────────────────────────
 

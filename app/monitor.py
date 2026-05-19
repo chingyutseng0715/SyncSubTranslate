@@ -5,7 +5,7 @@ import time
 import customtkinter as ctk
 
 from app import icon
-from app.heartbeat import HeartbeatReceiver, HEARTBEAT_PORT, HEARTBEAT_TIMEOUT
+from app.heartbeat import HeartbeatReceiver, HEARTBEAT_PORT, HEARTBEAT_TIMEOUT, local_ip
 
 
 def _try_open_firewall() -> None:
@@ -37,8 +37,8 @@ class MonitorWindow(ctk.CTkToplevel):
         self.root = root
         self.launcher = launcher
         self.title("AI Interpretation — Monitor Center")
-        self.geometry("860x580")
-        self.minsize(640, 400)
+        self.geometry("860x640")
+        self.minsize(640, 440)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         self._rooms: dict[str, dict] = {}
@@ -58,7 +58,7 @@ class MonitorWindow(ctk.CTkToplevel):
 
     def _center(self) -> None:
         self.update_idletasks()
-        w, h = 860, 580
+        w, h = 860, 640
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
         self.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2}")
 
@@ -76,6 +76,28 @@ class MonitorWindow(ctk.CTkToplevel):
             font=ctk.CTkFont(size=13), text_color="gray",
         )
         self._summary_lbl.pack(side="right")
+
+        # IP info bar — operators copy this into each service laptop's Monitor IP field
+        ip_bar = ctk.CTkFrame(self, fg_color="#0f2744", corner_radius=8)
+        ip_bar.pack(fill="x", padx=24, pady=(0, 10))
+        ctk.CTkLabel(
+            ip_bar,
+            text="This computer's IP:",
+            font=ctk.CTkFont(size=12),
+            text_color="gray",
+        ).pack(side="left", padx=(14, 6), pady=10)
+        ctk.CTkLabel(
+            ip_bar,
+            text=local_ip(),
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color="#7dd3fc",
+        ).pack(side="left", pady=10)
+        ctk.CTkLabel(
+            ip_bar,
+            text="  ← Enter this into each Subtitle Service computer's Monitor IP field",
+            font=ctk.CTkFont(size=11),
+            text_color="#4a6080",
+        ).pack(side="left", pady=10)
 
         self._grid = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self._grid.pack(fill="both", expand=True, padx=24, pady=(0, 4))
