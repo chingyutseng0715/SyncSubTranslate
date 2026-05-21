@@ -46,6 +46,11 @@ TRANSLATE_MODEL = os.getenv("TRANSLATE_MODEL", "qwen-plus")
 TRANSLATE_TIMEOUT = float(os.getenv("TRANSLATE_TIMEOUT", "4.0"))
 PORT = int(os.getenv("PORT", "8000"))
 LANG_PAIR = os.getenv("LANG_PAIR", "zh-en")  # "zh-en" or "zh-ja"
+DISPLAY_MODE = os.getenv("DISPLAY_MODE", "both")  # "both", "zh", "en"
+ZH_FONT_SIZE = int(os.getenv("ZH_FONT_SIZE", "56"))
+EN_FONT_SIZE = int(os.getenv("EN_FONT_SIZE", "40"))
+ZH_COLOR = os.getenv("ZH_COLOR", "#ffffff")
+EN_COLOR = os.getenv("EN_COLOR", "#fde68a")
 
 import sys as _sys
 if getattr(_sys, "frozen", False):
@@ -413,6 +418,17 @@ async def health():
         "terms_entries": len(_terms),
         "terms_version": _terms_version,
         "screen_clients": len(_clients),
+    }
+
+
+@app.get("/config")
+async def get_config():
+    return {
+        "display_mode": DISPLAY_MODE,
+        "zh_font_size": ZH_FONT_SIZE,
+        "en_font_size": EN_FONT_SIZE,
+        "zh_color": ZH_COLOR,
+        "en_color": EN_COLOR,
     }
 
 

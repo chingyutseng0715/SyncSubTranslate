@@ -21,6 +21,14 @@ _BTN_BLUE_HOVER = ("#36719F", "#144870")
 _BTN_RED = ("#7f1d1d", "#7f1d1d")
 _BTN_RED_HOVER = ("#991b1b", "#991b1b")
 
+_COLORS = {
+    "White":  "#ffffff",
+    "Red":    "#f87171",
+    "Yellow": "#fde68a",
+    "Blue":   "#7dd3fc",
+    "Green":  "#4ade80",
+}
+
 
 class ServiceWindow(ctk.CTkToplevel):
     """Service-mode window: mic picker, start/stop gateway."""
@@ -40,7 +48,7 @@ class ServiceWindow(ctk.CTkToplevel):
         self._health_stop = threading.Event()
 
         self._build()
-        self._center(520, 490)
+        self._center(520, 650)
         self._refresh_mics()
         icon.apply(self)
         self.lift()
@@ -114,6 +122,60 @@ class ServiceWindow(ctk.CTkToplevel):
         )
         self._monitor_entry.grid(row=4, column=1, columnspan=2, sticky="ew", pady=8)
 
+        # Display mode
+        ctk.CTkLabel(form, text="Display", anchor="w", width=100).grid(
+            row=5, column=0, sticky="w", pady=8, padx=(0, 12)
+        )
+        self._display_var = ctk.StringVar(value="Translated only")
+        self._display_menu = ctk.CTkOptionMenu(
+            form, variable=self._display_var,
+            values=["Translated only", "Original only", "Both"],
+            dynamic_resizing=False,
+        )
+        self._display_menu.grid(row=5, column=1, columnspan=2, sticky="ew", pady=8)
+
+        # Font sizes
+        ctk.CTkLabel(form, text="Font Size", anchor="w", width=100).grid(
+            row=6, column=0, sticky="w", pady=8, padx=(0, 12)
+        )
+        size_frame = ctk.CTkFrame(form, fg_color="transparent")
+        size_frame.grid(row=6, column=1, columnspan=2, sticky="ew", pady=8)
+
+        ctk.CTkLabel(size_frame, text="Original", anchor="w").grid(row=0, column=0, padx=(0, 6))
+        self._zh_size_var = ctk.StringVar(value="56")
+        self._zh_size_entry = ctk.CTkEntry(size_frame, textvariable=self._zh_size_var, width=56)
+        self._zh_size_entry.grid(row=0, column=1)
+        ctk.CTkLabel(size_frame, text="px", anchor="w").grid(row=0, column=2, padx=(4, 24))
+
+        ctk.CTkLabel(size_frame, text="Translated", anchor="w").grid(row=0, column=3, padx=(0, 6))
+        self._en_size_var = ctk.StringVar(value="40")
+        self._en_size_entry = ctk.CTkEntry(size_frame, textvariable=self._en_size_var, width=56)
+        self._en_size_entry.grid(row=0, column=4)
+        ctk.CTkLabel(size_frame, text="px", anchor="w").grid(row=0, column=5, padx=(4, 0))
+
+        # Colors
+        ctk.CTkLabel(form, text="Color", anchor="w", width=100).grid(
+            row=7, column=0, sticky="w", pady=8, padx=(0, 12)
+        )
+        color_frame = ctk.CTkFrame(form, fg_color="transparent")
+        color_frame.grid(row=7, column=1, columnspan=2, sticky="ew", pady=8)
+
+        ctk.CTkLabel(color_frame, text="Original", anchor="w").grid(row=0, column=0, padx=(0, 6))
+        self._zh_color_var = ctk.StringVar(value="White")
+        self._zh_color_menu = ctk.CTkOptionMenu(
+            color_frame, variable=self._zh_color_var,
+            values=list(_COLORS.keys()), dynamic_resizing=False, width=110,
+        )
+        self._zh_color_menu.grid(row=0, column=1, padx=(0, 20))
+
+        ctk.CTkLabel(color_frame, text="Translated", anchor="w").grid(row=0, column=2, padx=(0, 6))
+        self._en_color_var = ctk.StringVar(value="Yellow")
+        self._en_color_menu = ctk.CTkOptionMenu(
+            color_frame, variable=self._en_color_var,
+            values=list(_COLORS.keys()), dynamic_resizing=False, width=110,
+        )
+        self._en_color_menu.grid(row=0, column=3)
+
         # Action buttons
         btn_row = ctk.CTkFrame(self, fg_color="transparent")
         btn_row.pack(fill="x", padx=36, pady=(12, 0))
@@ -183,10 +245,31 @@ class ServiceWindow(ctk.CTkToplevel):
     def _lang_pair_code(self) -> str:
         return "zh-ja" if "Japanese" in self._lang_var.get() else "zh-en"
 
+    def _display_mode_code(self) -> str:
+        val = self._display_var.get()
+        if val == "Original only": return "zh"
+        if val == "Both": return "both"
+        return "en"
+
+    def _safe_size(self, var: ctk.StringVar, default: int) -> int:
+        try:
+            v = int(var.get())
+            return max(12, min(v, 200))
+        except ValueError:
+            return default
+
     def _start(self) -> None:
         monitor_ip = self._monitor_var.get().strip() or None
-        self._runner.start(self._selected_index(), api_key=self._api_var.get().strip(),
-                           lang_pair=self._lang_pair_code())
+        self._runner.start(
+            self._selected_index(),
+            api_key=self._api_var.get().strip(),
+            lang_pair=self._lang_pair_code(),
+            display_mode=self._display_mode_code(),
+            zh_size=self._safe_size(self._zh_size_var, 56),
+            en_size=self._safe_size(self._en_size_var, 40),
+            zh_color=_COLORS[self._zh_color_var.get()],
+            en_color=_COLORS[self._en_color_var.get()],
+        )
         self._health_stop.clear()
         threading.Thread(target=self._poll_health, daemon=True, name="health-poll").start()
         self._sender.start(self._room_var.get(), self._get_status, target_ip=monitor_ip)
@@ -198,6 +281,11 @@ class ServiceWindow(ctk.CTkToplevel):
         self._lang_menu.configure(state="disabled")
         self._mic_menu.configure(state="disabled")
         self._monitor_entry.configure(state="disabled")
+        self._display_menu.configure(state="disabled")
+        self._zh_size_entry.configure(state="disabled")
+        self._en_size_entry.configure(state="disabled")
+        self._zh_color_menu.configure(state="disabled")
+        self._en_color_menu.configure(state="disabled")
 
     def _stop(self) -> None:
         self._runner.stop()
@@ -212,6 +300,11 @@ class ServiceWindow(ctk.CTkToplevel):
         self._lang_menu.configure(state="normal")
         self._mic_menu.configure(state="normal")
         self._monitor_entry.configure(state="normal")
+        self._display_menu.configure(state="normal")
+        self._zh_size_entry.configure(state="normal")
+        self._en_size_entry.configure(state="normal")
+        self._zh_color_menu.configure(state="normal")
+        self._en_color_menu.configure(state="normal")
 
     # ── Health polling (for heartbeat payload) ────────────────────────────────
 

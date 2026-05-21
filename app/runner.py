@@ -18,7 +18,10 @@ class GatewayRunner:
     def running(self) -> bool:
         return self._proc is not None and self._proc.poll() is None
 
-    def start(self, device_index: int | None, api_key: str = "", lang_pair: str = "zh-en", on_line: Callable[[str], None] | None = None) -> None:
+    def start(self, device_index: int | None, api_key: str = "", lang_pair: str = "zh-en",
+              display_mode: str = "both", zh_size: int = 56, en_size: int = 40,
+              zh_color: str = "#ffffff", en_color: str = "#fde68a",
+              on_line: Callable[[str], None] | None = None) -> None:
         if self.running:
             return
 
@@ -27,6 +30,11 @@ class GatewayRunner:
         if api_key:
             env["DASHSCOPE_API_KEY"] = api_key
         env["LANG_PAIR"] = lang_pair
+        env["DISPLAY_MODE"] = display_mode
+        env["ZH_FONT_SIZE"] = str(zh_size)
+        env["EN_FONT_SIZE"] = str(en_size)
+        env["ZH_COLOR"] = zh_color
+        env["EN_COLOR"] = en_color
 
         if getattr(sys, "frozen", False):
             # Bundled exe: relaunch self with --gateway flag

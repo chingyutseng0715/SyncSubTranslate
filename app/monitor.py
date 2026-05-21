@@ -8,7 +8,7 @@ from app import icon
 from app.heartbeat import HeartbeatReceiver, HEARTBEAT_PORT, HEARTBEAT_TIMEOUT, local_ip
 
 
-def _try_open_firewall() -> None:
+def _try_open_firewall() -> None: 
     """Best-effort: add a Windows Firewall inbound rule for the UDP heartbeat port."""
     if sys.platform != "win32":
         return

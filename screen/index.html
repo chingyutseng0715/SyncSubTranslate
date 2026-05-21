@@ -45,25 +45,29 @@
     }
 
     /* ── Text styles ───────────────────────────────────────────────────── */
+    :root {
+      --zh-size: 56px;
+      --en-size: 40px;
+      --zh-color: #ffffff;
+      --en-color: #fde68a;
+    }
+
     .zh-text {
-      font-size: clamp(42px, 4.2vw, 64px);
+      font-size: var(--zh-size);
       font-weight: 700;
-      color: #ffffff;
+      color: var(--zh-color);
       line-height: 1.35;
       letter-spacing: 0.03em;
       text-shadow: 0 2px 12px rgba(0,0,0,0.95);
     }
 
     .en-text {
-      font-size: clamp(30px, 3vw, 48px);
+      font-size: var(--en-size);
       font-weight: 400;
-      color: #7dd3fc;
+      color: var(--en-color);
       line-height: 1.35;
       text-shadow: 0 1px 6px rgba(0,0,0,0.9);
     }
-
-    /* Fallback/error text shares en-text style but yellow */
-    .en-text.warn { color: #fde68a; }
 
     /* ── Separator between finals and partial ──────────────────────────── */
     .sep {
@@ -163,9 +167,29 @@
     let pingTimer = null;
     let termsVersion = 0;
 
+    // ── Display config (overridden by /config fetch) ──────────────────────────
+    let showZh = false;
+    let showEn = true;
+
     // ── Recording state ───────────────────────────────────────────────────────
     let isRecording = false;
     let recordedLines = [];  // [{zh, en, ts}]
+
+    // ── Config fetch ──────────────────────────────────────────────────────────
+    async function fetchConfig() {
+      try {
+        const r = await fetch(API_BASE + '/config');
+        if (!r.ok) return;
+        const cfg = await r.json();
+        showZh = cfg.display_mode !== 'en';
+        showEn = cfg.display_mode !== 'zh';
+        document.documentElement.style.setProperty('--zh-size', cfg.zh_font_size + 'px');
+        document.documentElement.style.setProperty('--en-size', cfg.en_font_size + 'px');
+        document.documentElement.style.setProperty('--zh-color', cfg.zh_color);
+        document.documentElement.style.setProperty('--en-color', cfg.en_color);
+        render();
+      } catch (e) { /* keep defaults */ }
+    }
 
     // ── Render ────────────────────────────────────────────────────────────────
     function esc(s) {
@@ -180,18 +204,18 @@
 
       for (const f of finals) {
         const isNew = f.id === lastNewId;
-        const enHtml = f.en
-          ? `<div class="en-text${f.en.startsWith('[') ? ' warn' : ''}">${esc(f.en)}</div>`
-          : '';
+        let inner = '';
+        if (showZh) inner += `<div class="zh-text">${esc(f.zh)}</div>`;
+        if (showEn && f.en) inner += `<div class="en-text">${esc(f.en)}</div>`;
+        if (!inner) continue;
         parts.push(
           `<div class="sub-line final${isNew ? ' new-final' : ''}">` +
-          `<div class="zh-text">${esc(f.zh)}</div>` +
-          enHtml +
+          inner +
           `</div>`
         );
       }
 
-      if (partial) {
+      if (partial && showZh) {
         if (finals.length > 0) parts.push('<div class="sep"></div>');
         parts.push(
           `<div class="sub-line partial">` +
@@ -300,6 +324,7 @@
       ws.onopen = () => {
         setStatus('ok', '● 直播中');
         startPing();
+        fetchConfig();
       };
 
       ws.onmessage = (e) => {
