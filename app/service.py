@@ -48,7 +48,7 @@ class ServiceWindow(ctk.CTkToplevel):
         self._health_stop = threading.Event()
 
         self._build()
-        self._center(520, 650)
+        self._center(620, 650)
         self._refresh_mics()
         icon.apply(self)
         self.lift()
@@ -142,13 +142,13 @@ class ServiceWindow(ctk.CTkToplevel):
         size_frame.grid(row=6, column=1, columnspan=2, sticky="ew", pady=8)
 
         ctk.CTkLabel(size_frame, text="Original", anchor="w").grid(row=0, column=0, padx=(0, 6))
-        self._zh_size_var = ctk.StringVar(value="56")
+        self._zh_size_var = ctk.StringVar(value="30")
         self._zh_size_entry = ctk.CTkEntry(size_frame, textvariable=self._zh_size_var, width=56)
         self._zh_size_entry.grid(row=0, column=1)
         ctk.CTkLabel(size_frame, text="px", anchor="w").grid(row=0, column=2, padx=(4, 24))
 
         ctk.CTkLabel(size_frame, text="Translated", anchor="w").grid(row=0, column=3, padx=(0, 6))
-        self._en_size_var = ctk.StringVar(value="40")
+        self._en_size_var = ctk.StringVar(value="30")
         self._en_size_entry = ctk.CTkEntry(size_frame, textvariable=self._en_size_var, width=56)
         self._en_size_entry.grid(row=0, column=4)
         ctk.CTkLabel(size_frame, text="px", anchor="w").grid(row=0, column=5, padx=(4, 0))
@@ -161,7 +161,7 @@ class ServiceWindow(ctk.CTkToplevel):
         color_frame.grid(row=7, column=1, columnspan=2, sticky="ew", pady=8)
 
         ctk.CTkLabel(color_frame, text="Original", anchor="w").grid(row=0, column=0, padx=(0, 6))
-        self._zh_color_var = ctk.StringVar(value="White")
+        self._zh_color_var = ctk.StringVar(value="Yellow")
         self._zh_color_menu = ctk.CTkOptionMenu(
             color_frame, variable=self._zh_color_var,
             values=list(_COLORS.keys()), dynamic_resizing=False, width=110,
@@ -169,7 +169,7 @@ class ServiceWindow(ctk.CTkToplevel):
         self._zh_color_menu.grid(row=0, column=1, padx=(0, 20))
 
         ctk.CTkLabel(color_frame, text="Translated", anchor="w").grid(row=0, column=2, padx=(0, 6))
-        self._en_color_var = ctk.StringVar(value="Yellow")
+        self._en_color_var = ctk.StringVar(value="Green")
         self._en_color_menu = ctk.CTkOptionMenu(
             color_frame, variable=self._en_color_var,
             values=list(_COLORS.keys()), dynamic_resizing=False, width=110,

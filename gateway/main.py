@@ -11,6 +11,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -47,10 +48,10 @@ TRANSLATE_TIMEOUT = float(os.getenv("TRANSLATE_TIMEOUT", "4.0"))
 PORT = int(os.getenv("PORT", "8000"))
 LANG_PAIR = os.getenv("LANG_PAIR", "zh-en")  # "zh-en" or "zh-ja"
 DISPLAY_MODE = os.getenv("DISPLAY_MODE", "both")  # "both", "zh", "en"
-ZH_FONT_SIZE = int(os.getenv("ZH_FONT_SIZE", "56"))
-EN_FONT_SIZE = int(os.getenv("EN_FONT_SIZE", "40"))
-ZH_COLOR = os.getenv("ZH_COLOR", "#ffffff")
-EN_COLOR = os.getenv("EN_COLOR", "#fde68a")
+ZH_FONT_SIZE = int(os.getenv("ZH_FONT_SIZE", "30"))
+EN_FONT_SIZE = int(os.getenv("EN_FONT_SIZE", "30"))
+ZH_COLOR = os.getenv("ZH_COLOR", "#fde68a")
+EN_COLOR = os.getenv("EN_COLOR", "#4ade80")
 
 import sys as _sys
 if getattr(_sys, "frozen", False):
@@ -240,6 +241,30 @@ async def ws_endpoint(websocket: WebSocket):
         logger.info("Screen disconnected (%d remain)", len(_clients))
 
 
+# ─── Sentence boundary helpers ─────────────────────────────────────────────────
+_SENTENCE_RE = re.compile(r'[。？！.?!]+')
+_CJK_RE     = re.compile(r'[一-鿿]')
+_WORD_RE    = re.compile(r'[a-zA-Z]+')
+
+ZH_CHAR_LIMIT = 25   # force-push when uncommitted Chinese chars exceed this
+EN_WORD_LIMIT = 20   # force-push when uncommitted English words exceed this
+
+
+def _last_boundary(text: str) -> int:
+    """Return the index just after the last sentence-ending punctuation, or 0."""
+    m = list(_SENTENCE_RE.finditer(text))
+    return m[-1].end() if m else 0
+
+
+def _should_force_push(text: str) -> bool:
+    """True when the uncommitted text is long enough to push without waiting for punctuation."""
+    if len(_CJK_RE.findall(text)) > ZH_CHAR_LIMIT:
+        return True
+    if len(_WORD_RE.findall(text)) > EN_WORD_LIMIT:
+        return True
+    return False
+
+
 # ─── Subtitle processing loop ───────────────────────────────────────────────────
 def _write_log(entry: dict) -> None:
     log_file = LOG_DIR / f"runtime_{datetime.now().strftime('%Y%m%d')}.jsonl"
@@ -252,28 +277,83 @@ def _write_log(entry: dict) -> None:
 
 async def _process_loop() -> None:
     logger.info("Subtitle processor ready")
+    # Character-count offset of the current ASR partial already dispatched.
+    # Integer (not string) so it survives ASR in-stream text revisions.
+    # Resets to 0 on every ASR final event.
+    committed_len = 0
+
+    async def _push_final(text: str) -> None:
+        en = await _translate(text)
+        payload = {
+            "status": "final",
+            "zh": text,
+            "en": en,
+            "locked": True,
+            "ts": datetime.now().isoformat(),
+            "terms_version": _terms_version,
+        }
+        _write_log(payload)
+        await _broadcast(payload)
+
+    def _drain() -> dict:
+        """Return the most-relevant queued message without blocking.
+        Keeps the first final encountered; among partials, keeps the latest."""
+        best = None
+        while True:
+            try:
+                msg = _subtitle_queue.get_nowait()
+                if best is None or best["status"] != "final":
+                    best = msg
+                if msg["status"] == "final":
+                    break   # final takes priority; stop draining
+            except asyncio.QueueEmpty:
+                break
+        return best
+
     while True:
         try:
             msg = await _subtitle_queue.get()
+
+            # Skip stale messages that piled up while we were awaiting translation
+            newer = _drain()
+            if newer is not None:
+                msg = newer
+
             zh = msg.get("zh", "").strip()
             if not zh:
                 continue
 
             if msg["status"] == "final":
-                en = await _translate(zh)
-                payload = {
-                    "status": "final",
-                    "zh": zh,
-                    "en": en,
-                    "locked": True,
-                    "ts": datetime.now().isoformat(),
-                    "terms_version": _terms_version,
-                }
-                _write_log(payload)
-            else:
-                payload = {"status": "partial", "zh": zh, "en": "", "locked": False}
+                # Translate only the portion not yet committed as mini-finals.
+                # Clamp in case ASR final is shorter than what we committed.
+                remaining = zh[committed_len:].strip() if committed_len < len(zh) else ""
+                committed_len = 0
+                if remaining:
+                    await _push_final(remaining)
 
-            await _broadcast(payload)
+            else:  # partial
+                # Guard: ASR may revise text to be shorter than committed_len
+                if committed_len > len(zh):
+                    committed_len = len(zh)
+
+                new_text = zh[committed_len:]
+                boundary = _last_boundary(new_text)
+
+                if boundary > 0:
+                    chunk = new_text[:boundary].strip()
+                    committed_len += boundary
+                    rest = new_text[boundary:].strip()
+                    if chunk:
+                        await _push_final(chunk)
+                    await _broadcast({"status": "partial", "zh": rest, "en": "", "locked": False})
+                elif _should_force_push(new_text):
+                    committed_len += len(new_text)
+                    if new_text.strip():
+                        await _push_final(new_text.strip())
+                    await _broadcast({"status": "partial", "zh": "", "en": "", "locked": False})
+                else:
+                    await _broadcast({"status": "partial", "zh": new_text, "en": "", "locked": False})
+
         except asyncio.CancelledError:
             break
         except Exception as exc:

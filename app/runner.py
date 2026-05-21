@@ -19,8 +19,8 @@ class GatewayRunner:
         return self._proc is not None and self._proc.poll() is None
 
     def start(self, device_index: int | None, api_key: str = "", lang_pair: str = "zh-en",
-              display_mode: str = "both", zh_size: int = 56, en_size: int = 40,
-              zh_color: str = "#ffffff", en_color: str = "#fde68a",
+              display_mode: str = "both", zh_size: int = 30, en_size: int = 30,
+              zh_color: str = "#fde68a", en_color: str = "#4ade80",
               on_line: Callable[[str], None] | None = None) -> None:
         if self.running:
             return
