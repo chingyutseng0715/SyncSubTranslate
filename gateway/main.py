@@ -50,8 +50,9 @@ LANG_PAIR = os.getenv("LANG_PAIR", "zh-en")  # "zh-en" or "zh-ja"
 DISPLAY_MODE = os.getenv("DISPLAY_MODE", "both")  # "both", "zh", "en"
 ZH_FONT_SIZE = int(os.getenv("ZH_FONT_SIZE", "30"))
 EN_FONT_SIZE = int(os.getenv("EN_FONT_SIZE", "30"))
-ZH_COLOR = os.getenv("ZH_COLOR", "#fde68a")
+ZH_COLOR = os.getenv("ZH_COLOR", "#ffff00")
 EN_COLOR = os.getenv("EN_COLOR", "#4ade80")
+BG_COLOR = os.getenv("BG_COLOR", "#000000")
 
 import sys as _sys
 if getattr(_sys, "frozen", False):
@@ -509,6 +510,7 @@ async def get_config():
         "en_font_size": EN_FONT_SIZE,
         "zh_color": ZH_COLOR,
         "en_color": EN_COLOR,
+        "bg_color": BG_COLOR,
     }
 
 

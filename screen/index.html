@@ -8,7 +8,7 @@
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      background: #000;
+      background: var(--bg-color);
       height: 100vh;
       display: flex;
       flex-direction: column;
@@ -48,8 +48,9 @@
     :root {
       --zh-size: 30px;
       --en-size: 30px;
-      --zh-color: #fde68a;
+      --zh-color: #ffff00;
       --en-color: #4ade80;
+      --bg-color: #000000;
     }
 
     .zh-text {
@@ -187,6 +188,7 @@
         document.documentElement.style.setProperty('--en-size', cfg.en_font_size + 'px');
         document.documentElement.style.setProperty('--zh-color', cfg.zh_color);
         document.documentElement.style.setProperty('--en-color', cfg.en_color);
+        document.documentElement.style.setProperty('--bg-color', cfg.bg_color);
         render();
       } catch (e) { /* keep defaults */ }
     }

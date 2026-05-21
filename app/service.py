@@ -24,9 +24,14 @@ _BTN_RED_HOVER = ("#991b1b", "#991b1b")
 _COLORS = {
     "White":  "#ffffff",
     "Red":    "#f87171",
-    "Yellow": "#fde68a",
+    "Yellow": "#ffff00",
     "Blue":   "#7dd3fc",
     "Green":  "#4ade80",
+}
+
+_BG_COLORS = {
+    "Black": "#000000",
+    "White": "#ffffff",
 }
 
 
@@ -48,7 +53,7 @@ class ServiceWindow(ctk.CTkToplevel):
         self._health_stop = threading.Event()
 
         self._build()
-        self._center(620, 650)
+        self._center(620, 710)
         self._refresh_mics()
         icon.apply(self)
         self.lift()
@@ -176,6 +181,17 @@ class ServiceWindow(ctk.CTkToplevel):
         )
         self._en_color_menu.grid(row=0, column=3)
 
+        # Background
+        ctk.CTkLabel(form, text="Background", anchor="w", width=100).grid(
+            row=8, column=0, sticky="w", pady=8, padx=(0, 12)
+        )
+        self._bg_var = ctk.StringVar(value="Black")
+        self._bg_menu = ctk.CTkOptionMenu(
+            form, variable=self._bg_var,
+            values=list(_BG_COLORS.keys()), dynamic_resizing=False,
+        )
+        self._bg_menu.grid(row=8, column=1, columnspan=2, sticky="ew", pady=8)
+
         # Action buttons
         btn_row = ctk.CTkFrame(self, fg_color="transparent")
         btn_row.pack(fill="x", padx=36, pady=(12, 0))
@@ -269,6 +285,7 @@ class ServiceWindow(ctk.CTkToplevel):
             en_size=self._safe_size(self._en_size_var, 40),
             zh_color=_COLORS[self._zh_color_var.get()],
             en_color=_COLORS[self._en_color_var.get()],
+            bg_color=_BG_COLORS[self._bg_var.get()],
         )
         self._health_stop.clear()
         threading.Thread(target=self._poll_health, daemon=True, name="health-poll").start()
@@ -286,6 +303,7 @@ class ServiceWindow(ctk.CTkToplevel):
         self._en_size_entry.configure(state="disabled")
         self._zh_color_menu.configure(state="disabled")
         self._en_color_menu.configure(state="disabled")
+        self._bg_menu.configure(state="disabled")
 
     def _stop(self) -> None:
         self._runner.stop()
@@ -305,6 +323,7 @@ class ServiceWindow(ctk.CTkToplevel):
         self._en_size_entry.configure(state="normal")
         self._zh_color_menu.configure(state="normal")
         self._en_color_menu.configure(state="normal")
+        self._bg_menu.configure(state="normal")
 
     # ── Health polling (for heartbeat payload) ────────────────────────────────
 
