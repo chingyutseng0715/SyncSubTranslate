@@ -13,35 +13,32 @@
       display: flex;
       flex-direction: column;
       justify-content: flex-end;
-      padding: 48px 80px;
+      padding: 48px 80px 130px;
       overflow: hidden;
       user-select: none;
       font-family: 'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', 'Hiragino Sans GB', sans-serif;
     }
 
-    /* ── Subtitle area ─────────────────────────────────────────────────── */
-    #subtitle-wrap {
+    /* ── Finals area (normal flow, only changes on sentence lock) ──────── */
+    #finals-wrap {
       display: flex;
       flex-direction: column;
       gap: 22px;
+    }
+
+    /* ── Partial overlay (fixed, never shifts finals) ──────────────────── */
+    #partial-wrap {
+      position: fixed;
+      bottom: 48px;
+      left: 80px;
+      right: 80px;
+      opacity: 0.45;
     }
 
     .sub-line {
       display: flex;
       flex-direction: column;
       gap: 8px;
-    }
-
-    .sub-line.final   { opacity: 1; }
-    .sub-line.partial { opacity: 0.4; }
-
-    .sub-line.new-final {
-      animation: slideUp 0.25s ease-out;
-    }
-
-    @keyframes slideUp {
-      from { opacity: 0; transform: translateY(14px); }
-      to   { opacity: 1; transform: translateY(0); }
     }
 
     /* ── Text styles ───────────────────────────────────────────────────── */
@@ -68,13 +65,6 @@
       color: var(--en-color);
       line-height: 1.35;
       text-shadow: 0 1px 6px rgba(0,0,0,0.9);
-    }
-
-    /* ── Separator between finals and partial ──────────────────────────── */
-    .sep {
-      height: 1px;
-      background: rgba(255,255,255,0.07);
-      margin: 2px 0;
     }
 
     /* ── Top-right controls ────────────────────────────────────────────── */
@@ -147,7 +137,8 @@
     <div id="status" class="err">● 连接中...</div>
   </div>
   <div id="terms-badge">术语库 v0</div>
-  <div id="subtitle-wrap"></div>
+  <div id="finals-wrap"></div>
+  <div id="partial-wrap"></div>
 
   <script>
     // ── Config ────────────────────────────────────────────────────────────────
@@ -160,10 +151,8 @@
     const PING_INTERVAL_MS = 10000;
 
     // ── State ─────────────────────────────────────────────────────────────────
-    let finals = [];     // [{zh, en, id}]
+    let finals = [];     // [{zh, en}]
     let partial = null;  // {zh} | null
-    let lineId = 0;
-    let lastNewId = -1;
     let ws = null;
     let pingTimer = null;
     let termsVersion = 0;
@@ -200,34 +189,24 @@
       return d.innerHTML;
     }
 
-    function render() {
-      const wrap = document.getElementById('subtitle-wrap');
-      const parts = [];
-
-      for (const f of finals) {
-        const isNew = f.id === lastNewId;
+    function renderFinals() {
+      const el = document.getElementById('finals-wrap');
+      el.innerHTML = finals.map(f => {
         let inner = '';
         if (showZh) inner += `<div class="zh-text">${esc(f.zh)}</div>`;
         if (showEn && f.en) inner += `<div class="en-text">${esc(f.en)}</div>`;
-        if (!inner) continue;
-        parts.push(
-          `<div class="sub-line final${isNew ? ' new-final' : ''}">` +
-          inner +
-          `</div>`
-        );
-      }
-
-      if (partial && showZh) {
-        if (finals.length > 0) parts.push('<div class="sep"></div>');
-        parts.push(
-          `<div class="sub-line partial">` +
-          `<div class="zh-text">${esc(partial.zh)}</div>` +
-          `</div>`
-        );
-      }
-
-      wrap.innerHTML = parts.join('');
+        return inner ? `<div class="sub-line">${inner}</div>` : '';
+      }).filter(Boolean).join('');
     }
+
+    function renderPartial() {
+      const el = document.getElementById('partial-wrap');
+      el.innerHTML = (partial && showZh)
+        ? `<div class="zh-text">${esc(partial.zh)}</div>`
+        : '';
+    }
+
+    function render() { renderFinals(); renderPartial(); }
 
     // ── Recording helpers ─────────────────────────────────────────────────────
     function downloadDoc() {
@@ -281,15 +260,15 @@
     function onMessage(data) {
       if (data.status === 'final') {
         partial = null;
-        const entry = { zh: data.zh, en: data.en || '', id: ++lineId };
-        finals.push(entry);
+        finals.push({ zh: data.zh, en: data.en || '' });
         if (finals.length > MAX_FINALS) finals.shift();
-        lastNewId = entry.id;
         if (isRecording) recordedLines.push({ zh: data.zh, en: data.en || '', ts: data.ts || new Date().toISOString() });
+        renderFinals();
+        renderPartial();
       } else {
         partial = { zh: data.zh };
+        renderPartial();   // finals are untouched — zero layout shift
       }
-      render();
 
       // Sync terms version if server sends it
       if (data.terms_version !== undefined && data.terms_version !== termsVersion) {

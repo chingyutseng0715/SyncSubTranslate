@@ -22,16 +22,21 @@ _BTN_RED = ("#7f1d1d", "#7f1d1d")
 _BTN_RED_HOVER = ("#991b1b", "#991b1b")
 
 _COLORS = {
-    "White":  "#ffffff",
-    "Red":    "#f87171",
-    "Yellow": "#ffff00",
-    "Blue":   "#7dd3fc",
-    "Green":  "#4ade80",
+    "White":      "#ffffff",
+    "Red":        "#f87171",
+    "Yellow":     "#ffff00",
+    "Light Yellow": "#fef9c3",
+    "Blue":       "#7dd3fc",
+    "Green":      "#4ade80",
+    "Pink":       "#f472b6",
+    "Leaf Green": "#22c55e",
+    "Dark Blue":  "#1d4ed8",
 }
 
 _BG_COLORS = {
-    "Black": "#000000",
-    "White": "#ffffff",
+    "Black":     "#000000",
+    "Dark Grey": "#1f2937",
+    "Dark Blue": "#0f172a",
 }
 
 
