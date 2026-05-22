@@ -21,7 +21,7 @@ Go to the [Releases](../../releases) page and download the latest version for yo
 
 ## How It Works
 
-On launch you choose a role for the current computer:
+On launch, select the role for this computer:
 
 ### Subtitle Service
 Runs on the laptop connected to the conference microphone.
@@ -29,17 +29,38 @@ Runs on the laptop connected to the conference microphone.
 1. Enter a **Room Name** (e.g. "Main Hall")
 2. Paste your **DashScope API key** (masked with `*`)
 3. Select **Language**: Chinese ↔ English or Chinese ↔ Japanese
-4. Pick the correct **Microphone** from the dropdown
-5. Click **Start Service**
-6. Click **Open Screen** — this opens the subtitle display in your browser
-7. Connect the browser to the big screen (fullscreen with double-click)
+4. Pick the correct **Microphone** from the dropdown (click ↻ to rescan)
+5. Optionally enter a **Monitor IP** — the IP address of the organizer's laptop running Monitor Center
+6. Choose a **Display** mode: Translated only, Original only, or Both
+7. Adjust **Font Size** and **Color** for original and translated text
+8. Click **Start Service**
+9. Click **Open Screen** — opens the subtitle display in your browser
+10. Double-click the browser window to go fullscreen and connect to the big screen
 
 ### Monitor Center
-Runs on the organizer's laptop. Shows a live dashboard of every room on the same network — green dot means online, red means no response for 15+ seconds.
+Runs on the organizer's laptop. Shows a live dashboard of every service room that has this computer's IP entered as Monitor IP.
 
-No configuration needed. All service laptops are discovered automatically via UDP broadcast.
+- The monitor window shows **this computer's IP** — enter it into each Subtitle Service laptop's Monitor IP field
+- Green dot = online; red dot = no response for 15+ seconds
+- Updates every 3 seconds; shows screen client count and terminology version per room
+- No server required — discovery uses direct UDP on port 47474
 
-> **Firewall note (Windows):** The app will attempt to add a Windows Firewall rule automatically. If rooms still don't appear after 20 seconds, run the app as Administrator once, or allow it manually under Windows Firewall → Allow an app.
+> **Firewall note (Windows):** The app attempts to add a Windows Firewall rule automatically. If rooms don't appear after 20 seconds, run the app as Administrator once, or allow it manually under Windows Firewall → Allow an app.
+
+---
+
+## Screen Display
+
+The browser subtitle screen (`http://localhost:8000`) shows:
+- **Partial text** (live, slightly faded) — updates as the speaker talks
+- **Final captions** (bright, locked) — appear on sentence completion with full translation
+- Up to 3 completed captions on screen at once
+- **Clock** top-left; **connection status** top-right
+- **Terminology version** badge bottom-right
+
+**Recording:** Click the ⏺ 录制 button to start recording all finalized captions. Click ⏹ 停止录制 to stop and download a `.doc` file with timestamps, original text, and translations.
+
+**Fullscreen:** Double-click anywhere to toggle fullscreen.
 
 ---
 
@@ -64,10 +85,12 @@ New accounts receive ¥200–500 in free credits, which is more than enough for 
 - Real-time ASR via `paraformer-realtime-v2` (Chinese/English or Chinese/Japanese mixed input)
 - Partial results shown live while speaking; final sentence locks in with translation
 - Qwen LLM translation with conference terminology injection
-- Terminology hot-reload — edit `gateway/terms.json` while running, applies within ~15 seconds, no restart needed
+- Configurable display: Translated only / Original only / Both, with custom font sizes and colors
+- Terminology hot-reload — edit `gateway/terms.json` while running, applies within ~15 seconds
 - Auto-reconnect — screen and ASR both recover automatically from network drops
 - L2 fallback — if translation times out (>4s), shows original Chinese automatically while retrying
 - Monitor Center — single dashboard for all rooms over LAN, no server required
+- Session recording — download bilingual caption transcripts as `.doc` from the browser screen
 
 ---
 
@@ -76,8 +99,8 @@ New accounts receive ¥200–500 in free credits, which is more than enough for 
 | Level | Trigger | Behaviour |
 |-------|---------|-----------|
 | L1 | Normal | Full AI bilingual captions |
-| L2 | Translation timeout or API rate limit | Shows Chinese original, resumes automatically |
-| L3 | ASR disconnect / network loss | Screen holds last subtitle, gateway auto-restarts ASR (3s backoff) |
+| L2 | Translation timeout or API rate limit | Shows original Chinese + `[译文生成中...]`, resumes automatically |
+| L3 | ASR disconnect / network loss | Screen holds last subtitle; gateway auto-restarts ASR (3s backoff) |
 
 ---
 
@@ -99,10 +122,7 @@ Changes are detected automatically within ~15 seconds. No restart required.
 Requires Python 3.10+ and an Alibaba Cloud DashScope API key.
 
 ```bash
-# Install dependencies
 pip install -r requirements.txt
-
-# Run the desktop app
 python -m app
 ```
 
@@ -122,7 +142,6 @@ DISABLE_AUDIO=1 python -m app          # macOS / Linux
 
 ## Build from Source
 
-Requires PyInstaller:
 ```bash
 pip install pyinstaller
 python -m PyInstaller build.spec --clean --noconfirm
@@ -136,12 +155,18 @@ Automated builds for both platforms run via GitHub Actions on every version tag 
 
 ## Configuration Reference
 
-These environment variables can be set in `gateway/.env` for advanced use:
+Environment variables passed through the UI or set in `gateway/.env`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DASHSCOPE_API_KEY` | *(required)* | Alibaba Cloud DashScope key |
 | `LANG_PAIR` | `zh-en` | Language pair: `zh-en` or `zh-ja` |
+| `DISPLAY_MODE` | `en` | What to show: `en` (translated only), `zh` (original only), `both` |
+| `ZH_FONT_SIZE` | `30` | Font size in px for original-language text |
+| `EN_FONT_SIZE` | `30` | Font size in px for translated text |
+| `ZH_COLOR` | `#ffff00` | Color for original-language text |
+| `EN_COLOR` | `#4ade80` | Color for translated text |
+| `BG_COLOR` | `#000000` | Screen background color |
 | `TRANSLATE_MODEL` | `qwen-plus` | Qwen model: `qwen-turbo` / `qwen-plus` / `qwen-max` |
 | `TRANSLATE_TIMEOUT` | `4.0` | Seconds before L2 fallback |
 | `PORT` | `8000` | HTTP and WebSocket port |
