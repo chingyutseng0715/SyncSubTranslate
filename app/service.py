@@ -1,8 +1,10 @@
 import json
+import sys
 import threading
 import time
 import urllib.request
 import webbrowser
+from pathlib import Path
 
 import customtkinter as ctk
 
@@ -15,6 +17,12 @@ except Exception:
 from app import icon
 from app.heartbeat import HeartbeatSender
 from app.runner import GatewayRunner
+
+def _settings_path() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent / "last_settings.json"
+    return Path(__file__).parent.parent / "last_settings.json"
+
 
 # ── Theme ─────────────────────────────────────────────────────────────────────
 _BG       = "#f5f0e8"
@@ -115,7 +123,18 @@ class ServiceWindow(ctk.CTkToplevel):
         ctk.CTkLabel(
             self, text="Configure and start the AI interpretation gateway",
             font=ctk.CTkFont(size=12), text_color=_TEXT2,
-        ).pack(pady=(0, 18))
+        ).pack(pady=(0, 10))
+
+        has_saved = _settings_path().exists()
+        self._load_btn = ctk.CTkButton(
+            self, text="Use Last Settings",
+            height=32, font=ctk.CTkFont(size=12),
+            fg_color=_TINT, hover_color=_BLUE, text_color=_TEXT,
+            corner_radius=8,
+            state="normal" if has_saved else "disabled",
+            command=self._apply_saved_settings,
+        )
+        self._load_btn.pack(pady=(0, 14))
 
         form = ctk.CTkFrame(self, fg_color="transparent")
         form.pack(fill="x", padx=36)
@@ -320,6 +339,7 @@ class ServiceWindow(ctk.CTkToplevel):
             return default
 
     def _start(self) -> None:
+        self._save_settings()
         monitor_ip = self._monitor_var.get().strip() or None
         self._runner.start(
             self._selected_index(),
@@ -402,6 +422,43 @@ class ServiceWindow(ctk.CTkToplevel):
             "ws_clients": self._health.get("screen_clients", 0),
             "terms_version": self._health.get("terms_version", 0),
         }
+
+    # ── Settings persistence ──────────────────────────────────────────────────
+
+    def _save_settings(self) -> None:
+        data = {
+            "room":       self._room_var.get(),
+            "api_key":    self._api_var.get(),
+            "lang":       self._lang_var.get(),
+            "monitor_ip": self._monitor_var.get(),
+            "display":    self._display_var.get(),
+            "zh_size":    self._zh_size_var.get(),
+            "en_size":    self._en_size_var.get(),
+            "zh_color":   self._zh_color_var.get(),
+            "en_color":   self._en_color_var.get(),
+            "bg":         self._bg_var.get(),
+        }
+        try:
+            _settings_path().write_text(json.dumps(data, indent=2), encoding="utf-8")
+            self._load_btn.configure(state="normal")
+        except Exception:
+            pass
+
+    def _apply_saved_settings(self) -> None:
+        try:
+            data = json.loads(_settings_path().read_text(encoding="utf-8"))
+        except Exception:
+            return
+        self._room_var.set(data.get("room", "Room 1"))
+        self._api_var.set(data.get("api_key", ""))
+        self._lang_var.set(data.get("lang", "Chinese ↔ English"))
+        self._monitor_var.set(data.get("monitor_ip", ""))
+        self._display_var.set(data.get("display", "Both"))
+        self._zh_size_var.set(data.get("zh_size", "30"))
+        self._en_size_var.set(data.get("en_size", "30"))
+        self._zh_color_var.set(data.get("zh_color", "Blue"))
+        self._en_color_var.set(data.get("en_color", "Green"))
+        self._bg_var.set(data.get("bg", "Black"))
 
     # ── Navigation ────────────────────────────────────────────────────────────
 
