@@ -12,11 +12,91 @@
       height: 100vh;
       display: flex;
       flex-direction: column;
-      justify-content: flex-end;
-      padding: 48px 80px 130px;
       overflow: hidden;
       user-select: none;
       font-family: 'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', 'Hiragino Sans GB', sans-serif;
+    }
+
+    /* ── Text styles ───────────────────────────────────────────────────── */
+    :root {
+      --zh-size: 30px;
+      --en-size: 30px;
+      --zh-color: #7dd3fc;
+      --en-color: #4ade80;
+      --bg-color: #000000;
+    }
+
+    /* ── Header strip ──────────────────────────────────────────────────── */
+    #header {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 44px;
+      padding: 0 24px;
+      background: rgb(0, 0, 0);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    #header-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    #header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #clock {
+      font-size: 13px;
+      color: rgba(255,255,255,0.35);
+      letter-spacing: 0.08em;
+    }
+
+    #status {
+      font-size: 13px;
+      letter-spacing: 0.06em;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      background: rgba(255,255,255,0.07);
+      backdrop-filter: blur(4px);
+      transition: color 0.4s;
+    }
+    #status.ok   { color: #4ade80; }
+    #status.warn { color: #facc15; }
+    #status.err  { color: #f87171; }
+
+    #rec-btn {
+      font-size: 13px;
+      font-family: inherit;
+      letter-spacing: 0.06em;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      background: rgba(255,255,255,0.07);
+      backdrop-filter: blur(4px);
+      border: none;
+      color: rgba(255,255,255,0.55);
+      cursor: pointer;
+      transition: color 0.3s, background 0.3s;
+    }
+    #rec-btn:hover { background: rgba(255,255,255,0.13); }
+    #rec-btn.recording {
+      color: #f87171;
+      background: rgba(248,113,113,0.18);
+    }
+
+    /* ── Subtitle area (everything below header) ────────────────────────── */
+    #subtitle-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 32px 80px 90px;
+      position: relative;
+      overflow: hidden;
     }
 
     /* ── Finals area (normal flow, only changes on sentence lock) ──────── */
@@ -26,10 +106,10 @@
       gap: 22px;
     }
 
-    /* ── Partial overlay (fixed, never shifts finals) ──────────────────── */
+    /* ── Partial overlay (absolute within subtitle-area, never shifts finals) */
     #partial-wrap {
-      position: fixed;
-      bottom: 48px;
+      position: absolute;
+      bottom: 32px;
       left: 80px;
       right: 80px;
       opacity: 0.45;
@@ -39,15 +119,6 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
-    }
-
-    /* ── Text styles ───────────────────────────────────────────────────── */
-    :root {
-      --zh-size: 30px;
-      --en-size: 30px;
-      --zh-color: #ffff00;
-      --en-color: #4ade80;
-      --bg-color: #000000;
     }
 
     .zh-text {
@@ -66,83 +137,25 @@
       line-height: 1.35;
       text-shadow: 0 1px 6px rgba(0,0,0,0.9);
     }
-
-    /* ── Top-right controls ────────────────────────────────────────────── */
-    #top-right {
-      position: fixed;
-      top: 24px;
-      right: 32px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    #status {
-      font-size: 13px;
-      letter-spacing: 0.06em;
-      padding: 5px 14px;
-      border-radius: 9999px;
-      background: rgba(255,255,255,0.07);
-      backdrop-filter: blur(4px);
-      transition: color 0.4s;
-    }
-    #status.ok   { color: #4ade80; }
-    #status.warn { color: #facc15; }
-    #status.err  { color: #f87171; }
-
-    #rec-btn {
-      font-size: 13px;
-      font-family: inherit;
-      letter-spacing: 0.06em;
-      padding: 5px 14px;
-      border-radius: 9999px;
-      background: rgba(255,255,255,0.07);
-      backdrop-filter: blur(4px);
-      border: none;
-      color: rgba(255,255,255,0.55);
-      cursor: pointer;
-      transition: color 0.3s, background 0.3s;
-    }
-    #rec-btn:hover { background: rgba(255,255,255,0.13); }
-    #rec-btn.recording {
-      color: #f87171;
-      background: rgba(248,113,113,0.18);
-    }
-
-    /* ── Clock (top-left) ───────────────────────────────────────────────── */
-    #clock {
-      position: fixed;
-      top: 24px;
-      left: 32px;
-      font-size: 13px;
-      color: rgba(255,255,255,0.22);
-      letter-spacing: 0.08em;
-    }
-
-    /* ── Terms version badge (bottom-right, tiny) ──────────────────────── */
-    #terms-badge {
-      position: fixed;
-      bottom: 18px;
-      right: 28px;
-      font-size: 11px;
-      color: rgba(255,255,255,0.15);
-      letter-spacing: 0.04em;
-    }
   </style>
 </head>
 <body>
-  <div id="clock">--:--</div>
-  <div id="top-right">
-    <button id="rec-btn">⏺ 录制</button>
-    <div id="status" class="err">● 连接中...</div>
+  <div id="header">
+    <div id="header-left">
+      <div id="clock">--:--</div>
+    </div>
+    <div id="header-right">
+      <button id="rec-btn">⏺ 录制</button>
+      <div id="status" class="err">● 连接中...</div>
+    </div>
   </div>
-  <div id="terms-badge">术语库 v0</div>
-  <div id="finals-wrap"></div>
-  <div id="partial-wrap"></div>
+  <div id="subtitle-area">
+    <div id="finals-wrap"></div>
+    <div id="partial-wrap"></div>
+  </div>
 
   <script>
     // ── Config ────────────────────────────────────────────────────────────────
-    const MAX_FINALS = 3;
     const WS_URL = location.protocol === 'file:'
       ? 'ws://localhost:8000/ws'
       : `ws://${location.host}/ws`;
@@ -158,7 +171,7 @@
     let termsVersion = 0;
 
     // ── Display config (overridden by /config fetch) ──────────────────────────
-    let showZh = false;
+    let showZh = true;
     let showEn = true;
 
     // ── Recording state ───────────────────────────────────────────────────────
@@ -261,7 +274,6 @@
       if (data.status === 'final') {
         partial = null;
         finals.push({ zh: data.zh, en: data.en || '' });
-        if (finals.length > MAX_FINALS) finals.shift();
         if (isRecording) recordedLines.push({ zh: data.zh, en: data.en || '', ts: data.ts || new Date().toISOString() });
         renderFinals();
         renderPartial();
@@ -270,11 +282,7 @@
         renderPartial();   // finals are untouched — zero layout shift
       }
 
-      // Sync terms version if server sends it
-      if (data.terms_version !== undefined && data.terms_version !== termsVersion) {
-        termsVersion = data.terms_version;
-        document.getElementById('terms-badge').textContent = `术语库 v${termsVersion}`;
-      }
+      if (data.terms_version !== undefined) termsVersion = data.terms_version;
     }
 
     // ── WebSocket ─────────────────────────────────────────────────────────────

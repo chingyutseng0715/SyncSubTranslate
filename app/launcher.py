@@ -1,6 +1,13 @@
 import customtkinter as ctk
 from app import icon
 
+_BG      = "#f5f0e8"
+_BLUE    = "#7dd3fc"
+_BLUE_HV = "#38bdf8"
+_TINT    = "#e0f2fe"
+_TEXT    = "#1e293b"
+_TEXT2   = "#64748b"
+
 
 class LauncherWindow(ctk.CTkToplevel):
     """Role-selection screen shown on app launch."""
@@ -11,8 +18,9 @@ class LauncherWindow(ctk.CTkToplevel):
         self.title("AI Interpretation System")
         self.resizable(False, False)
         self.protocol("WM_DELETE_WINDOW", root.destroy)
+        self.configure(fg_color=_BG)
         self._build()
-        self._center(420, 320)
+        self._center(400, 290)
         icon.apply(self)
         self.lift()
         self.focus_force()
@@ -24,34 +32,41 @@ class LauncherWindow(ctk.CTkToplevel):
 
     def _build(self) -> None:
         ctk.CTkLabel(
-            self, text="AI Interpretation System",
+            self, text="AI Interpretation",
             font=ctk.CTkFont(size=24, weight="bold"),
-        ).pack(pady=(40, 6))
+            text_color=_TEXT,
+        ).pack(pady=(44, 4))
 
         ctk.CTkLabel(
             self, text="Select the role for this computer",
             font=ctk.CTkFont(size=13),
-            text_color="gray",
-        ).pack(pady=(0, 36))
+            text_color=_TEXT2,
+        ).pack(pady=(0, 32))
 
         frame = ctk.CTkFrame(self, fg_color="transparent")
-        frame.pack(fill="x", padx=48)
+        frame.pack(fill="x", padx=44)
 
         ctk.CTkButton(
             frame,
-            text="🎙   Subtitle Service",
-            height=56,
-            font=ctk.CTkFont(size=16, weight="bold"),
+            text="Subtitle Service",
+            height=52,
+            font=ctk.CTkFont(size=15, weight="bold"),
+            fg_color=_BLUE,
+            hover_color=_BLUE_HV,
+            text_color=_TEXT,
+            corner_radius=10,
             command=self._go_service,
-        ).pack(fill="x", pady=(0, 14))
+        ).pack(fill="x", pady=(0, 10))
 
         ctk.CTkButton(
             frame,
-            text="🖥   Monitor Center",
-            height=56,
-            font=ctk.CTkFont(size=16, weight="bold"),
-            fg_color="#1a4731",
-            hover_color="#22603f",
+            text="Monitor Center",
+            height=52,
+            font=ctk.CTkFont(size=15, weight="bold"),
+            fg_color=_TINT,
+            hover_color=_BLUE,
+            text_color=_TEXT,
+            corner_radius=10,
             command=self._go_monitor,
         ).pack(fill="x")
 

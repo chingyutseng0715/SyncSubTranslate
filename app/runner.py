@@ -20,7 +20,7 @@ class GatewayRunner:
 
     def start(self, device_index: int | None, api_key: str = "", lang_pair: str = "zh-en",
               display_mode: str = "both", zh_size: int = 30, en_size: int = 30,
-              zh_color: str = "#ffff00", en_color: str = "#4ade80",
+              zh_color: str = "#7dd3fc", en_color: str = "#4ade80",
               bg_color: str = "#000000",
               on_line: Callable[[str], None] | None = None) -> None:
         if self.running:

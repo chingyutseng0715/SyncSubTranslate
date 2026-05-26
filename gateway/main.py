@@ -50,7 +50,7 @@ LANG_PAIR = os.getenv("LANG_PAIR", "zh-en")  # "zh-en" or "zh-ja"
 DISPLAY_MODE = os.getenv("DISPLAY_MODE", "both")  # "both", "zh", "en"
 ZH_FONT_SIZE = int(os.getenv("ZH_FONT_SIZE", "30"))
 EN_FONT_SIZE = int(os.getenv("EN_FONT_SIZE", "30"))
-ZH_COLOR = os.getenv("ZH_COLOR", "#ffff00")
+ZH_COLOR = os.getenv("ZH_COLOR", "#7dd3fc")
 EN_COLOR = os.getenv("EN_COLOR", "#4ade80")
 BG_COLOR = os.getenv("BG_COLOR", "#000000")
 
@@ -207,10 +207,10 @@ async def _translate(text: str) -> str:
         )
     except asyncio.TimeoutError:
         logger.warning("Translation timeout (%.1fs): %.40s", TRANSLATE_TIMEOUT, text)
-        return "[译文生成中...]"
+        return ""
     except Exception as exc:
         logger.error("Translation error: %s", exc)
-        return "[翻译服务异常]"
+        return ""
 
 
 # ─── WebSocket client management ──────────────────────────────────────────────

@@ -38,7 +38,7 @@ def _run_as_ui() -> None:
     import customtkinter as ctk
     from app.launcher import LauncherWindow
 
-    ctk.set_appearance_mode("dark")
+    ctk.set_appearance_mode("light")
     ctk.set_default_color_theme("blue")
     root = ctk.CTk()
     root.withdraw()
