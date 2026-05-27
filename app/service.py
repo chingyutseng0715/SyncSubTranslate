@@ -14,9 +14,9 @@ try:
 except Exception:
     _PYAUDIO_OK = False
 
-from app import icon
 from app.heartbeat import HeartbeatSender
 from app.runner import GatewayRunner
+from app.i18n import t, on_change
 
 def _settings_path() -> Path:
     if getattr(sys, "frozen", False):
@@ -24,18 +24,21 @@ def _settings_path() -> Path:
     return Path(__file__).parent.parent / "last_settings.json"
 
 
-# ── Theme ─────────────────────────────────────────────────────────────────────
-_BG       = "#f5f0e8"
-_SURFACE  = "#ffffff"
-_BLUE     = "#7dd3fc"
-_BLUE_HV  = "#38bdf8"
-_TINT     = "#e0f2fe"
-_TEXT     = "#1e293b"
-_TEXT2    = "#64748b"
-_BORDER   = "#e2d9cc"
-_STOP_TEXT = "#991b1b"
+# ── Design tokens (keep in sync with launcher.py) ─────────────────────────────
+_BG        = "#f5f6fa"
+_SURFACE   = "#ffffff"
+_ACCENT    = "#3b82f6"
+_ACCENT_HV = "#2563eb"
+_ACCENT_LT = "#eff6ff"
+_TEXT      = "#111827"
+_TEXT2     = "#6b7280"
+_TEXT3     = "#9ca3af"
+_BORDER    = "#e5e7eb"
+_HOVER_BG  = "#f3f4f6"
+_STOP_BG   = "#fef2f2"
+_STOP_TEXT = "#dc2626"
+_STOP_HV   = "#fee2e2"
 
-# ── Subtitle screen colors (passed to gateway) ────────────────────────────────
 _COLORS = {
     "White":        "#ffffff",
     "Red":          "#f87171",
@@ -55,17 +58,147 @@ _BG_COLORS = {
 }
 
 
-class ServiceWindow(ctk.CTkToplevel):
-    """Service-mode window: mic picker, start/stop gateway."""
+# ── Windows Core Audio: enumerate only DEVICE_STATE_ACTIVE capture endpoints ──
 
-    def __init__(self, root: ctk.CTk, launcher):
-        super().__init__(root)
-        self.root = root
-        self.launcher = launcher
-        self.title("AI Interpretation — Subtitle Service")
-        self.resizable(False, False)
-        self.protocol("WM_DELETE_WINDOW", self._on_close)
-        self.configure(fg_color=_BG)
+def _win_active_mics() -> tuple[list[str], str | None]:
+    """
+    Use Windows IMMDeviceEnumerator to list only *active* (plugged-in, enabled)
+    audio capture endpoints — the same set Microsoft Teams shows.
+
+    Returns (active_names, default_name):
+      active_names — FriendlyName of each DEVICE_STATE_ACTIVE capture endpoint
+      default_name — FriendlyName of the eCapture/eConsole default, or None
+    Returns ([], None) on non-Windows or any COM error (caller falls back).
+    """
+    if sys.platform != "win32":
+        return [], None
+    try:
+        import ctypes
+        import uuid as _uuid
+
+        ole32 = ctypes.windll.ole32
+        ole32.CoInitializeEx(None, 2)       # COINIT_MULTITHREADED; ignore return value
+
+        def _guid(s: str) -> ctypes.Array:
+            return (ctypes.c_byte * 16)(*_uuid.UUID(s).bytes_le)
+
+        def _vt(p: ctypes.c_void_p) -> ctypes.POINTER(ctypes.c_void_p):
+            """Return the vtable pointer array for a COM interface pointer."""
+            vtbl = ctypes.c_void_p.from_address(p.value).value
+            return ctypes.cast(vtbl, ctypes.POINTER(ctypes.c_void_p))
+
+        def _rel(p: ctypes.c_void_p) -> None:
+            if p and p.value:
+                ctypes.WINFUNCTYPE(ctypes.c_ulong, ctypes.c_void_p)(_vt(p)[2])(p)
+
+        # Create IMMDeviceEnumerator ------------------------------------------
+        p_enum = ctypes.c_void_p()
+        if ole32.CoCreateInstance(
+            _guid("BCDE0395-E52F-467C-8E3D-C4579291692E"),  # CLSID_MMDeviceEnumerator
+            None, 23,                                        # CLSCTX_ALL
+            _guid("A95664D2-9614-4F35-A746-DE8DB63617E6"),  # IID_IMMDeviceEnumerator
+            ctypes.byref(p_enum),
+        ) != 0 or not p_enum.value:
+            return [], None
+        ev = _vt(p_enum)
+
+        # IMMDeviceEnumerator vtable: QI AddRef Release Enum(3) GetDefault(4)
+        EnumEndpoints = ctypes.WINFUNCTYPE(
+            ctypes.HRESULT, ctypes.c_void_p,
+            ctypes.c_int, ctypes.c_uint32, ctypes.POINTER(ctypes.c_void_p),
+        )(ev[3])
+        GetDefault = ctypes.WINFUNCTYPE(
+            ctypes.HRESULT, ctypes.c_void_p,
+            ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.c_void_p),
+        )(ev[4])
+
+        # PKEY_Device_FriendlyName = {A45C254E-DF1C-4EFD-8020-67D146A850E0}, pid=14
+        class _PROPKEY(ctypes.Structure):
+            _fields_ = [("fmtid", ctypes.c_byte * 16), ("pid", ctypes.c_uint32)]
+
+        pkey = _PROPKEY()
+        ctypes.memmove(pkey.fmtid, _guid("A45C254E-DF1C-4EFD-8020-67D146A850E0"), 16)
+        pkey.pid = 14
+
+        # PROPVARIANT (64-bit layout: 8-byte header + 8-byte union + 8-byte pad = 24 bytes)
+        class _PROPVAR(ctypes.Structure):
+            _fields_ = [
+                ("vt", ctypes.c_uint16), ("r1", ctypes.c_uint16),
+                ("r2", ctypes.c_uint16), ("r3", ctypes.c_uint16),
+                ("ptr", ctypes.c_size_t),   # VT_LPWSTR (31) → wchar_t*
+                ("_x",  ctypes.c_uint64),   # padding for DECIMAL union member
+            ]
+
+        def _get_name(p_dev: ctypes.c_void_p) -> str | None:
+            """Read PKEY_Device_FriendlyName from an IMMDevice via IPropertyStore."""
+            # IMMDevice vtable: QI AddRef Release Activate OpenPropertyStore(4)
+            OpenStore = ctypes.WINFUNCTYPE(
+                ctypes.HRESULT, ctypes.c_void_p,
+                ctypes.c_uint32, ctypes.POINTER(ctypes.c_void_p),
+            )(_vt(p_dev)[4])
+            p_store = ctypes.c_void_p()
+            if OpenStore(p_dev, 0, ctypes.byref(p_store)) != 0 or not p_store.value:
+                return None
+            # IPropertyStore vtable: QI AddRef Release GetCount GetAt GetValue(5)
+            GetValue = ctypes.WINFUNCTYPE(
+                ctypes.HRESULT, ctypes.c_void_p,
+                ctypes.POINTER(_PROPKEY), ctypes.POINTER(_PROPVAR),
+            )(_vt(p_store)[5])
+            pv = _PROPVAR()
+            name: str | None = None
+            if GetValue(p_store, ctypes.byref(pkey), ctypes.byref(pv)) == 0:
+                if pv.vt == 31 and pv.ptr:             # VT_LPWSTR = 31
+                    name = ctypes.cast(pv.ptr, ctypes.c_wchar_p).value
+                    ole32.CoTaskMemFree(ctypes.c_void_p(pv.ptr))
+            _rel(p_store)
+            return name
+
+        # Enumerate DEVICE_STATE_ACTIVE (1) capture endpoints (eCapture=1) ----
+        p_coll = ctypes.c_void_p()
+        if EnumEndpoints(p_enum, 1, 1, ctypes.byref(p_coll)) != 0 or not p_coll.value:
+            _rel(p_enum)
+            return [], None
+        cv = _vt(p_coll)
+        GetCount = ctypes.WINFUNCTYPE(
+            ctypes.HRESULT, ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint32),
+        )(cv[3])
+        Item = ctypes.WINFUNCTYPE(
+            ctypes.HRESULT, ctypes.c_void_p,
+            ctypes.c_uint32, ctypes.POINTER(ctypes.c_void_p),
+        )(cv[4])
+
+        n = ctypes.c_uint32(0)
+        GetCount(p_coll, ctypes.byref(n))
+        active: list[str] = []
+        for i in range(n.value):
+            p_dev = ctypes.c_void_p()
+            if Item(p_coll, i, ctypes.byref(p_dev)) == 0 and p_dev.value:
+                nm = _get_name(p_dev)
+                if nm:
+                    active.append(nm)
+                _rel(p_dev)
+        _rel(p_coll)
+
+        # Get eCapture/eConsole default device --------------------------------
+        p_def = ctypes.c_void_p()
+        default: str | None = None
+        if GetDefault(p_enum, 1, 0, ctypes.byref(p_def)) == 0 and p_def.value:
+            default = _get_name(p_def)
+            _rel(p_def)
+
+        _rel(p_enum)
+        return active, default
+
+    except Exception:
+        return [], None
+
+
+class ServiceView(ctk.CTkFrame):
+    """Subtitle Service configuration and control, embedded in MainWindow."""
+
+    def __init__(self, parent, main_window):
+        super().__init__(parent, fg_color=_BG, corner_radius=0)
+        self.main_window = main_window
 
         self._runner = GatewayRunner()
         self._sender = HeartbeatSender()
@@ -73,220 +206,312 @@ class ServiceWindow(ctk.CTkToplevel):
         self._health: dict = {}
         self._health_stop = threading.Event()
 
+        # i18n: (widget, key) pairs updated on language change
+        self._dyn: list[tuple] = []
+        # Tracks the i18n key for the current status label state
+        self._status_key = "status_idle"
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+
         self._build()
-        self._center(600, 700)
         self._refresh_mics()
-        icon.apply(self)
-        self.lift()
-        self.focus_force()
-
-    def _center(self, w: int, h: int) -> None:
-        self.update_idletasks()
-        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
-        self.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2}")
-
-    # ── Styled widget helpers ──────────────────────────────────────────────────
-
-    def _entry(self, parent, **kw):
-        return ctk.CTkEntry(
-            parent, fg_color=_SURFACE, border_color=_BORDER,
-            text_color=_TEXT, **kw,
-        )
-
-    def _menu(self, parent, **kw):
-        return ctk.CTkOptionMenu(
-            parent,
-            fg_color=_SURFACE,
-            button_color=_BLUE,
-            button_hover_color=_BLUE_HV,
-            text_color=_TEXT,
-            dropdown_fg_color=_SURFACE,
-            dropdown_text_color=_TEXT,
-            dropdown_hover_color=_TINT,
-            **kw,
-        )
-
-    def _row_label(self, parent, row, text):
-        ctk.CTkLabel(
-            parent, text=text, anchor="w", width=100,
-            font=ctk.CTkFont(size=12), text_color=_TEXT2,
-        ).grid(row=row, column=0, sticky="w", pady=7, padx=(0, 12))
+        on_change(self._apply_lang)
 
     # ── Build UI ───────────────────────────────────────────────────────────────
 
     def _build(self) -> None:
-        ctk.CTkLabel(
-            self, text="Subtitle Service",
-            font=ctk.CTkFont(size=20, weight="bold"),
-            text_color=_TEXT,
-        ).pack(pady=(28, 2))
-        ctk.CTkLabel(
-            self, text="Configure and start the AI interpretation gateway",
-            font=ctk.CTkFont(size=12), text_color=_TEXT2,
-        ).pack(pady=(0, 10))
+        self._build_header()
+        self._build_body()
 
-        has_saved = _settings_path().exists()
+    def _build_header(self) -> None:
+        hdr = ctk.CTkFrame(self, fg_color=_SURFACE, corner_radius=0)
+        hdr.grid(row=0, column=0, sticky="ew")
+        ctk.CTkFrame(hdr, height=1, fg_color=_BORDER).pack(side="bottom", fill="x")
+
+        inner = ctk.CTkFrame(hdr, fg_color="transparent")
+        inner.pack(fill="x", padx=20, pady=12)
+
+        # Status indicator — fixed width on the left
+        self._status_lbl = ctk.CTkLabel(
+            inner, text=t("status_idle"),
+            font=ctk.CTkFont(size=12), text_color=_TEXT3,
+            width=130, anchor="w",
+        )
+        self._status_lbl.pack(side="left", padx=(8, 12))
+
+        # Three buttons share all remaining space equally via a grid sub-frame
+        btn_bar = ctk.CTkFrame(inner, fg_color="transparent")
+        btn_bar.pack(side="left", fill="x", expand=True)
+        btn_bar.columnconfigure((0, 1, 2), weight=1)
+
         self._load_btn = ctk.CTkButton(
-            self, text="Use Last Settings",
-            height=32, font=ctk.CTkFont(size=12),
-            fg_color=_TINT, hover_color=_BLUE, text_color=_TEXT,
-            corner_radius=8,
-            state="normal" if has_saved else "disabled",
+            btn_bar, text=t("use_last"),
+            height=38, corner_radius=8,
+            fg_color=_BG, hover_color=_HOVER_BG,
+            text_color=_TEXT2, border_width=1, border_color=_BORDER,
+            font=ctk.CTkFont(size=12),
+            state="normal" if _settings_path().exists() else "disabled",
             command=self._apply_saved_settings,
         )
-        self._load_btn.pack(pady=(0, 14))
-
-        form = ctk.CTkFrame(self, fg_color="transparent")
-        form.pack(fill="x", padx=36)
-        form.columnconfigure(1, weight=1)
-
-        # Room name
-        self._row_label(form, 0, "Room Name")
-        self._room_var = ctk.StringVar(value="Room 1")
-        self._room_entry = self._entry(form, textvariable=self._room_var)
-        self._room_entry.grid(row=0, column=1, columnspan=2, sticky="ew", pady=7)
-
-        # API key
-        self._row_label(form, 1, "API Key")
-        self._api_var = ctk.StringVar()
-        self._api_entry = self._entry(
-            form, textvariable=self._api_var, show="*",
-            placeholder_text="sk-xxxxxxxxxxxxxxxxxxxx",
-        )
-        self._api_entry.grid(row=1, column=1, columnspan=2, sticky="ew", pady=7)
-
-        # Language pair
-        self._row_label(form, 2, "Language")
-        self._lang_var = ctk.StringVar(value="Chinese ↔ English")
-        self._lang_menu = self._menu(
-            form, variable=self._lang_var,
-            values=["Chinese ↔ English", "Chinese ↔ Japanese"],
-            dynamic_resizing=False,
-        )
-        self._lang_menu.grid(row=2, column=1, columnspan=2, sticky="ew", pady=7)
-
-        # Microphone
-        self._row_label(form, 3, "Microphone")
-        self._mic_var = ctk.StringVar(value="Scanning...")
-        self._mic_menu = self._menu(
-            form, variable=self._mic_var, values=["Scanning..."], dynamic_resizing=False,
-        )
-        self._mic_menu.grid(row=3, column=1, sticky="ew", pady=7, padx=(0, 8))
-        ctk.CTkButton(
-            form, text="↻", width=36,
-            fg_color=_TINT, hover_color=_BLUE, text_color=_TEXT,
-            command=self._refresh_mics,
-        ).grid(row=3, column=2)
-
-        # Monitor IP
-        self._row_label(form, 4, "Monitor IP")
-        self._monitor_var = ctk.StringVar()
-        self._monitor_entry = self._entry(
-            form, textvariable=self._monitor_var,
-            placeholder_text="Optional — e.g. 192.168.1.10",
-        )
-        self._monitor_entry.grid(row=4, column=1, columnspan=2, sticky="ew", pady=7)
-
-        # Display mode
-        self._row_label(form, 5, "Display")
-        self._display_var = ctk.StringVar(value="Both")
-        self._display_menu = self._menu(
-            form, variable=self._display_var,
-            values=["Translated only", "Original only", "Both"],
-            dynamic_resizing=False,
-        )
-        self._display_menu.grid(row=5, column=1, columnspan=2, sticky="ew", pady=7)
-
-        # Font sizes
-        self._row_label(form, 6, "Font Size")
-        size_frame = ctk.CTkFrame(form, fg_color="transparent")
-        size_frame.grid(row=6, column=1, columnspan=2, sticky="ew", pady=7)
-
-        def small_lbl(parent, text, col):
-            ctk.CTkLabel(
-                parent, text=text, anchor="w",
-                font=ctk.CTkFont(size=12), text_color=_TEXT2,
-            ).grid(row=0, column=col, padx=(0, 6))
-
-        small_lbl(size_frame, "Original", 0)
-        self._zh_size_var = ctk.StringVar(value="30")
-        self._zh_size_entry = self._entry(size_frame, textvariable=self._zh_size_var, width=56)
-        self._zh_size_entry.grid(row=0, column=1)
-        ctk.CTkLabel(size_frame, text="px", text_color=_TEXT2, font=ctk.CTkFont(size=12)).grid(row=0, column=2, padx=(4, 24))
-
-        small_lbl(size_frame, "Translated", 3)
-        self._en_size_var = ctk.StringVar(value="30")
-        self._en_size_entry = self._entry(size_frame, textvariable=self._en_size_var, width=56)
-        self._en_size_entry.grid(row=0, column=4)
-        ctk.CTkLabel(size_frame, text="px", text_color=_TEXT2, font=ctk.CTkFont(size=12)).grid(row=0, column=5, padx=(4, 0))
-
-        # Colors
-        self._row_label(form, 7, "Color")
-        color_frame = ctk.CTkFrame(form, fg_color="transparent")
-        color_frame.grid(row=7, column=1, columnspan=2, sticky="ew", pady=7)
-
-        small_lbl(color_frame, "Original", 0)
-        self._zh_color_var = ctk.StringVar(value="Blue")
-        self._zh_color_menu = self._menu(
-            color_frame, variable=self._zh_color_var,
-            values=list(_COLORS.keys()), dynamic_resizing=False, width=110,
-        )
-        self._zh_color_menu.grid(row=0, column=1, padx=(0, 20))
-
-        small_lbl(color_frame, "Translated", 2)
-        self._en_color_var = ctk.StringVar(value="Green")
-        self._en_color_menu = self._menu(
-            color_frame, variable=self._en_color_var,
-            values=list(_COLORS.keys()), dynamic_resizing=False, width=110,
-        )
-        self._en_color_menu.grid(row=0, column=3)
-
-        # Background
-        self._row_label(form, 8, "Background")
-        self._bg_var = ctk.StringVar(value="Black")
-        self._bg_menu = self._menu(
-            form, variable=self._bg_var,
-            values=list(_BG_COLORS.keys()), dynamic_resizing=False,
-        )
-        self._bg_menu.grid(row=8, column=1, columnspan=2, sticky="ew", pady=7)
-
-        # Divider
-        ctk.CTkFrame(self, height=1, fg_color=_BORDER).pack(fill="x", padx=36, pady=(18, 0))
-
-        # Action buttons
-        btn_row = ctk.CTkFrame(self, fg_color="transparent")
-        btn_row.pack(fill="x", padx=36, pady=(14, 0))
-
-        self._start_btn = ctk.CTkButton(
-            btn_row, text="Start Service", height=44,
-            font=ctk.CTkFont(size=14, weight="bold"),
-            fg_color=_BLUE, hover_color=_BLUE_HV, text_color=_TEXT,
-            corner_radius=10,
-            command=self._toggle,
-        )
-        self._start_btn.pack(side="left", expand=True, fill="x", padx=(0, 8))
+        self._load_btn.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        self._dyn.append((self._load_btn, "use_last"))
 
         self._browser_btn = ctk.CTkButton(
-            btn_row, text="Open Screen", height=44,
-            fg_color=_TINT, hover_color=_BLUE, text_color=_TEXT,
-            corner_radius=10,
+            btn_bar, text=t("open_screen"),
+            height=38, corner_radius=8,
+            fg_color=_BG, hover_color=_HOVER_BG,
+            text_color=_TEXT2, border_width=1, border_color=_BORDER,
+            font=ctk.CTkFont(size=12),
             command=lambda: webbrowser.open("http://localhost:8000"),
             state="disabled",
         )
-        self._browser_btn.pack(side="left", expand=True, fill="x")
+        self._browser_btn.grid(row=0, column=1, sticky="ew", padx=(0, 6))
+        self._dyn.append((self._browser_btn, "open_screen"))
 
-        # Status
-        self._status_lbl = ctk.CTkLabel(
-            self, text="● Not started", text_color=_TEXT2,
-            font=ctk.CTkFont(size=12),
+        self._start_btn = ctk.CTkButton(
+            btn_bar, text=t("start_service"),
+            height=38, corner_radius=8,
+            fg_color=_ACCENT, hover_color=_ACCENT_HV,
+            text_color="#ffffff",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            command=self._toggle,
         )
-        self._status_lbl.pack(pady=(14, 4))
+        self._start_btn.grid(row=0, column=2, sticky="ew")
 
-        ctk.CTkButton(
-            self, text="← Back",
-            fg_color="transparent", hover_color=_TINT, text_color=_TEXT2,
-            command=self._back,
-        ).pack(pady=(0, 18))
+    def _build_body(self) -> None:
+        body = ctk.CTkScrollableFrame(
+            self, fg_color=_BG, corner_radius=0,
+            scrollbar_button_color=_BORDER,
+            scrollbar_button_hover_color=_TEXT3,
+        )
+        body.grid(row=1, column=0, sticky="nsew")
+        body.grid_columnconfigure(0, weight=1)
+
+        wrap = ctk.CTkFrame(body, fg_color="transparent")
+        wrap.pack(fill="x", padx=28, pady=(20, 28))
+
+        # ── Gateway (full width, top) ──────────────────────────────────────
+        self._sec_label(wrap, "sec_gateway")
+        gw = self._card(wrap)
+
+        self._row_label(gw, 0, "room_name")
+        self._room_var = ctk.StringVar(value="Room 1")
+        self._room_entry = self._entry(gw, self._room_var)
+        self._room_entry.grid(row=0, column=1, sticky="ew", padx=(0, 20), pady=9)
+
+        self._row_label(gw, 1, "api_key")
+        self._api_var = ctk.StringVar()
+        self._api_entry = self._entry(gw, self._api_var, show="*",
+                                      placeholder="sk-xxxxxxxxxxxxxxxxxxxx")
+        self._api_entry.grid(row=1, column=1, sticky="ew", padx=(0, 20), pady=9)
+
+        self._row_label(gw, 2, "monitor_ip")
+        self._monitor_var = ctk.StringVar()
+        self._monitor_entry = self._entry(gw, self._monitor_var,
+                                          placeholder="Optional — e.g. 192.168.1.10")
+        self._monitor_entry.grid(row=2, column=1, sticky="ew", padx=(0, 20), pady=9)
+
+        # ── Display | Audio (40 / 60) ──────────────────────────────────────
+        split = ctk.CTkFrame(wrap, fg_color="transparent")
+        split.pack(fill="x")
+        split.columnconfigure(0, weight=2)   # Display — 40 %
+        split.columnconfigure(1, weight=3)   # Audio   — 60 %
+
+        # Left column — Display (40 %)
+        left_col = ctk.CTkFrame(split, fg_color="transparent")
+        left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+
+        self._sec_label(left_col, "sec_display")
+        disp = self._card_bare(left_col)
+        disp.pack(fill="x")
+
+        LW = 106   # label width for the narrower column
+
+        self._row_label(disp, 0, "mode", lw=LW)
+        self._display_var = ctk.StringVar(value="Both")
+        self._display_menu = self._menu(
+            disp, self._display_var,
+            ["Translated only", "Original only", "Both"],
+            row=0,
+        )
+
+        self._row_label(disp, 1, "orig_size", lw=LW)
+        self._zh_size_var = ctk.StringVar(value="30")
+        self._zh_size_entry = self._px_entry(disp, self._zh_size_var, 1)
+
+        self._row_label(disp, 2, "trans_size", lw=LW)
+        self._en_size_var = ctk.StringVar(value="30")
+        self._en_size_entry = self._px_entry(disp, self._en_size_var, 2)
+
+        self._row_label(disp, 3, "orig_color", lw=LW)
+        self._zh_color_var = ctk.StringVar(value="Blue")
+        self._zh_color_menu = self._menu(
+            disp, self._zh_color_var, list(_COLORS.keys()), row=3,
+        )
+
+        self._row_label(disp, 4, "trans_color", lw=LW)
+        self._en_color_var = ctk.StringVar(value="Green")
+        self._en_color_menu = self._menu(
+            disp, self._en_color_var, list(_COLORS.keys()), row=4,
+        )
+
+        self._row_label(disp, 5, "background", lw=LW)
+        self._bg_var = ctk.StringVar(value="Black")
+        self._bg_menu = self._menu(
+            disp, self._bg_var, list(_BG_COLORS.keys()),
+            row=5, pady=(9, 14),
+        )
+
+        # Right column — Audio (60 %)
+        right_col = ctk.CTkFrame(split, fg_color="transparent")
+        right_col.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
+
+        self._sec_label(right_col, "sec_audio")
+        audio = self._card_bare(right_col)
+        audio.pack(fill="x")
+
+        # Mic row: bordered menu + refresh button side by side
+        self._row_label(audio, 0, "microphone", lw=96)
+        mic_row = ctk.CTkFrame(audio, fg_color="transparent")
+        mic_row.grid(row=0, column=1, sticky="ew", padx=(0, 16), pady=9)
+        mic_row.columnconfigure(0, weight=1)
+
+        mic_border = ctk.CTkFrame(mic_row, fg_color=_BORDER, corner_radius=9)
+        mic_border.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+        mic_border.columnconfigure(0, weight=1)
+        self._mic_var = ctk.StringVar(value="Scanning...")
+        self._mic_menu = ctk.CTkOptionMenu(
+            mic_border, variable=self._mic_var, values=["Scanning..."],
+            **self._om(), dynamic_resizing=False,
+        )
+        self._mic_menu.grid(row=0, column=0, sticky="ew", padx=1, pady=1)
+
+        self._mic_refresh_btn = ctk.CTkButton(
+            mic_row, text="↻", width=34, height=34,
+            fg_color=_BG, hover_color=_HOVER_BG,
+            text_color=_TEXT2, border_width=1, border_color=_BORDER,
+            corner_radius=8, font=ctk.CTkFont(size=15),
+            command=self._refresh_mics,
+        )
+        self._mic_refresh_btn.grid(row=0, column=1)
+
+        self._row_label(audio, 1, "lang_pair", lw=96)
+        self._lang_var = ctk.StringVar(value="Chinese ↔ English")
+        self._lang_menu = self._menu(
+            audio, self._lang_var,
+            ["Chinese ↔ English", "Chinese ↔ Japanese"],
+            row=1, pady=(9, 14),
+        )
+
+        # All widgets that get disabled while running
+        self._form_widgets = [
+            self._mic_menu, self._mic_refresh_btn, self._lang_menu,
+            self._room_entry, self._api_entry, self._monitor_entry,
+            self._display_menu, self._zh_size_entry, self._en_size_entry,
+            self._zh_color_menu, self._en_color_menu, self._bg_menu,
+            self._load_btn,
+        ]
+
+    # ── Widget factory helpers ─────────────────────────────────────────────────
+
+    def _sec_label(self, parent, key: str) -> ctk.CTkLabel:
+        lbl = ctk.CTkLabel(
+            parent, text=t(key), anchor="w",
+            font=ctk.CTkFont(size=10, weight="bold"), text_color=_TEXT3,
+        )
+        lbl.pack(fill="x", pady=(18, 5), padx=2)
+        self._dyn.append((lbl, key))
+        return lbl
+
+    def _card(self, parent) -> ctk.CTkFrame:
+        """Card that packs itself into parent (for full-width sections)."""
+        card = ctk.CTkFrame(
+            parent, fg_color=_SURFACE, corner_radius=12,
+            border_width=1, border_color=_BORDER,
+        )
+        card.pack(fill="x")
+        card.columnconfigure(1, weight=1)
+        return card
+
+    def _card_bare(self, parent) -> ctk.CTkFrame:
+        """Card frame without geometry management — caller places it."""
+        card = ctk.CTkFrame(
+            parent, fg_color=_SURFACE, corner_radius=12,
+            border_width=1, border_color=_BORDER,
+        )
+        card.columnconfigure(1, weight=1)
+        return card
+
+    def _row_label(self, card, row: int, key: str, lw: int = 124) -> ctk.CTkLabel:
+        lbl = ctk.CTkLabel(
+            card, text=t(key), anchor="w", width=lw,
+            font=ctk.CTkFont(size=12), text_color=_TEXT2,
+        )
+        lbl.grid(row=row, column=0, sticky="w", padx=(16, 10), pady=9)
+        self._dyn.append((lbl, key))
+        return lbl
+
+    def _px_entry(self, card, var: ctk.StringVar, row: int) -> ctk.CTkEntry:
+        """Compact [entry] px row — returns the entry widget."""
+        f = ctk.CTkFrame(card, fg_color="transparent")
+        f.grid(row=row, column=1, sticky="w", padx=(0, 16), pady=9)
+        e = ctk.CTkEntry(
+            f, textvariable=var, width=58, height=34,
+            fg_color=_SURFACE, border_color=_BORDER, text_color=_TEXT, corner_radius=8,
+        )
+        e.pack(side="left")
+        ctk.CTkLabel(f, text=" px", font=ctk.CTkFont(size=11), text_color=_TEXT3).pack(side="left")
+        return e
+
+    def _entry(self, parent, var, show="", placeholder="") -> ctk.CTkEntry:
+        return ctk.CTkEntry(
+            parent, textvariable=var, show=show,
+            placeholder_text=placeholder, height=34,
+            fg_color=_SURFACE, border_color=_BORDER,
+            text_color=_TEXT, corner_radius=8,
+        )
+
+    def _om(self) -> dict:
+        """Shared CTkOptionMenu style kwargs (border_width not supported by CTkOptionMenu)."""
+        return dict(
+            fg_color=_SURFACE, button_color=_ACCENT,
+            button_hover_color=_ACCENT_HV, text_color=_TEXT,
+            dropdown_fg_color=_SURFACE, dropdown_text_color=_TEXT,
+            dropdown_hover_color=_ACCENT_LT, corner_radius=7,
+            height=32,
+        )
+
+    def _menu(self, parent, var: ctk.StringVar, values: list,
+              row: int, col: int = 1, padx: tuple = (0, 16),
+              pady: int = 9, dynamic_resizing: bool = False,
+              width: int = 0) -> ctk.CTkOptionMenu:
+        """
+        Place a CTkOptionMenu inside a 1-px border frame and return the menu widget.
+        CTkOptionMenu has no native border support, so the outer CTkFrame provides it.
+        """
+        border = ctk.CTkFrame(parent, fg_color=_BORDER, corner_radius=9)
+        border.grid(row=row, column=col, sticky="ew", padx=padx, pady=pady)
+        border.columnconfigure(0, weight=1)
+        kw = dict(**self._om(), dynamic_resizing=dynamic_resizing)
+        if width:
+            kw["width"] = width
+        m = ctk.CTkOptionMenu(border, variable=var, values=values, **kw)
+        m.grid(row=0, column=0, sticky="ew", padx=1, pady=1)
+        return m
+
+    # ── Language update ────────────────────────────────────────────────────────
+
+    def _apply_lang(self) -> None:
+        for widget, key in self._dyn:
+            widget.configure(text=t(key))
+        # Status label reflects current running state
+        self._status_lbl.configure(text=t(self._status_key))
+        # Start/stop button text depends on runner state
+        if self._runner.running:
+            self._start_btn.configure(text=t("stop_service"))
+        else:
+            self._start_btn.configure(text=t("start_service"))
 
     # ── Microphone helpers ────────────────────────────────────────────────────
 
@@ -296,20 +521,15 @@ class ServiceWindow(ctk.CTkToplevel):
             try:
                 p = pyaudio.PyAudio()
 
-                # On Windows, each physical device is listed once per host API
-                # (MME, DirectSound, WASAPI), so a single USB sound card or mic
-                # shows up 2–3 times.  Strategy: scan everything, deduplicate by
-                # name (case-insensitive), but upgrade to the WASAPI entry if one
-                # exists — WASAPI gives lower latency and also correctly represents
-                # external USB audio interfaces.  This ensures external gear is
-                # never hidden (unlike a hard WASAPI-only filter).
+                # Step 1 — collect all input devices, preferring WASAPI entries
+                # (WASAPI gives lower latency; deduplication removes the MME /
+                # DirectSound clones that PortAudio exposes for the same hardware).
                 wasapi_api: int | None = None
                 for h in range(p.get_host_api_count()):
                     if "WASAPI" in p.get_host_api_info_by_index(h).get("name", ""):
                         wasapi_api = h
                         break
 
-                # key → (device_index, display_name, is_wasapi)
                 seen: dict[str, tuple[int, str, bool]] = {}
                 for i in range(p.get_device_count()):
                     info = p.get_device_info_by_index(i)
@@ -321,14 +541,39 @@ class ServiceWindow(ctk.CTkToplevel):
                     if key not in seen or (is_wasapi and not seen[key][2]):
                         seen[key] = (i, name, is_wasapi)
 
-                # Sort by device index for a stable, predictable order
-                devices = [
+                all_devs: list[tuple[int, str]] = [
                     (idx, dname)
                     for idx, dname, _ in sorted(seen.values(), key=lambda x: x[0])
                 ]
                 p.terminate()
+
+                # Step 2 — Windows: keep only DEVICE_STATE_ACTIVE endpoints.
+                # This mirrors what Teams/Zoom show: no disabled, unplugged,
+                # or virtual HDMI/DP sinks appear.  Falls back to all_devs if
+                # the COM query returns nothing useful.
+                active_names, default_name = _win_active_mics()
+                if active_names:
+                    active_lower = {n.lower() for n in active_names}
+                    filtered = [
+                        (idx, name) for idx, name in all_devs
+                        if name.lower() in active_lower
+                    ]
+                    if filtered:
+                        all_devs = filtered
+
+                # Step 3 — put the system-default mic first so it's pre-selected.
+                if default_name:
+                    def_lower = default_name.lower()
+                    for i, (idx, name) in enumerate(all_devs):
+                        if name.lower() == def_lower:
+                            if i != 0:
+                                all_devs.insert(0, all_devs.pop(i))
+                            break
+
+                devices = all_devs
             except Exception:
                 pass
+
         self._mic_devices = devices
         names = [name for _, name in devices] or ["(No microphone detected)"]
         self._mic_menu.configure(values=names)
@@ -355,7 +600,7 @@ class ServiceWindow(ctk.CTkToplevel):
     def _display_mode_code(self) -> str:
         val = self._display_var.get()
         if val == "Original only": return "zh"
-        if val == "Both": return "both"
+        if val == "Both":          return "both"
         return "en"
 
     def _safe_size(self, var: ctk.StringVar, default: int) -> int:
@@ -364,6 +609,13 @@ class ServiceWindow(ctk.CTkToplevel):
             return max(12, min(v, 200))
         except ValueError:
             return default
+
+    def _set_form_state(self, state: str) -> None:
+        for w in self._form_widgets:
+            try:
+                w.configure(state=state)
+            except Exception:
+                pass
 
     def _start(self) -> None:
         self._save_settings()
@@ -382,46 +634,30 @@ class ServiceWindow(ctk.CTkToplevel):
         self._health_stop.clear()
         threading.Thread(target=self._poll_health, daemon=True, name="health-poll").start()
         self._sender.start(self._room_var.get(), self._get_status, target_ip=monitor_ip)
+
         self._start_btn.configure(
-            text="Stop Service",
-            fg_color="#fee2e2", hover_color="#fecaca", text_color=_STOP_TEXT,
+            text=t("stop_service"),
+            fg_color=_STOP_BG, hover_color=_STOP_HV, text_color=_STOP_TEXT,
         )
         self._browser_btn.configure(state="normal")
-        self._status_lbl.configure(text="● Starting...", text_color="#f59e0b")
-        self._room_entry.configure(state="disabled")
-        self._api_entry.configure(state="disabled")
-        self._lang_menu.configure(state="disabled")
-        self._mic_menu.configure(state="disabled")
-        self._monitor_entry.configure(state="disabled")
-        self._display_menu.configure(state="disabled")
-        self._zh_size_entry.configure(state="disabled")
-        self._en_size_entry.configure(state="disabled")
-        self._zh_color_menu.configure(state="disabled")
-        self._en_color_menu.configure(state="disabled")
-        self._bg_menu.configure(state="disabled")
+        self._status_key = "status_starting"
+        self._status_lbl.configure(text=t("status_starting"), text_color="#f59e0b")
+        self._set_form_state("disabled")
 
     def _stop(self) -> None:
         self._runner.stop()
         self._health_stop.set()
         self._sender.stop()
         self._health = {}
+
         self._start_btn.configure(
-            text="Start Service",
-            fg_color=_BLUE, hover_color=_BLUE_HV, text_color=_TEXT,
+            text=t("start_service"),
+            fg_color=_ACCENT, hover_color=_ACCENT_HV, text_color="#ffffff",
         )
         self._browser_btn.configure(state="disabled")
-        self._status_lbl.configure(text="● Stopped", text_color=_TEXT2)
-        self._room_entry.configure(state="normal")
-        self._api_entry.configure(state="normal")
-        self._lang_menu.configure(state="normal")
-        self._mic_menu.configure(state="normal")
-        self._monitor_entry.configure(state="normal")
-        self._display_menu.configure(state="normal")
-        self._zh_size_entry.configure(state="normal")
-        self._en_size_entry.configure(state="normal")
-        self._zh_color_menu.configure(state="normal")
-        self._en_color_menu.configure(state="normal")
-        self._bg_menu.configure(state="normal")
+        self._status_key = "status_stopped"
+        self._status_lbl.configure(text=t("status_stopped"), text_color=_TEXT3)
+        self._set_form_state("normal")
 
     # ── Health polling ────────────────────────────────────────────────────────
 
@@ -433,14 +669,16 @@ class ServiceWindow(ctk.CTkToplevel):
                 with urllib.request.urlopen("http://localhost:8000/health", timeout=2) as r:
                     self._health = json.loads(r.read())
                 failures = 0
+                self._status_key = "status_running"
                 self.after(0, lambda: self._status_lbl.configure(
-                    text="● Running", text_color="#22c55e"))
+                    text=t("status_running"), text_color="#16a34a"))
             except Exception:
                 self._health = {}
                 failures += 1
                 if failures >= 2:
+                    self._status_key = "status_no_gw"
                     self.after(0, lambda: self._status_lbl.configure(
-                        text="● Gateway not responding", text_color="#ef4444"))
+                        text=t("status_no_gw"), text_color="#dc2626"))
             self._health_stop.wait(5)
 
     def _get_status(self) -> dict:
@@ -453,7 +691,7 @@ class ServiceWindow(ctk.CTkToplevel):
     # ── Settings persistence ──────────────────────────────────────────────────
 
     def _save_settings(self) -> None:
-        # Save the mic by name, not index — indices shift when devices are
+        # Save mic by name (not index) — indices shift when devices are
         # plugged/unplugged, but the name stays stable across sessions.
         data = {
             "room":       self._room_var.get(),
@@ -490,30 +728,36 @@ class ServiceWindow(ctk.CTkToplevel):
         self._en_color_var.set(data.get("en_color", "Green"))
         self._bg_var.set(data.get("bg", "Black"))
 
-        # Restore mic: match saved name against the current device list.
-        # Indices can change between sessions, so we match by name first.
+        # Restore mic by name — exact match first, then fuzzy substring fallback
         saved_mic = data.get("mic", "")
         if saved_mic and self._mic_devices:
-            # Exact name match
             for _, name in self._mic_devices:
                 if name == saved_mic:
                     self._mic_var.set(name)
                     break
             else:
-                # Fuzzy fallback: saved name is a substring of current name
-                # (handles minor driver-version renames, e.g. "(WDM)" suffix changes)
                 for _, name in self._mic_devices:
                     if saved_mic in name or name in saved_mic:
                         self._mic_var.set(name)
                         break
 
-    # ── Navigation ────────────────────────────────────────────────────────────
+    # ── on_show sync ──────────────────────────────────────────────────────────
 
-    def _back(self) -> None:
-        self._stop()
-        self.destroy()
-        self.launcher.deiconify()
+    def on_show(self) -> None:
+        """Called when this view is brought to front via sidebar nav."""
+        if self._runner.running:
+            self._start_btn.configure(
+                text=t("stop_service"),
+                fg_color=_STOP_BG, hover_color=_STOP_HV, text_color=_STOP_TEXT,
+            )
+            self._browser_btn.configure(state="normal")
+        else:
+            self._start_btn.configure(
+                text=t("start_service"),
+                fg_color=_ACCENT, hover_color=_ACCENT_HV, text_color="#ffffff",
+            )
+            self._browser_btn.configure(state="disabled")
 
-    def _on_close(self) -> None:
-        self._stop()
-        self.root.destroy()
+
+# Backward-compat alias (used by any code that imports ServiceWindow)
+ServiceWindow = ServiceView

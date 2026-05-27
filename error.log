@@ -1,0 +1,98 @@
+Traceback (most recent call last):
+  File "C:\Users\eugen\Desktop\Speech Translate Tool\SyncSubTranslate\app\__main__.py", line 54, in <module>
+    _run_as_ui()
+    ~~~~~~~~~~^^
+  File "C:\Users\eugen\Desktop\Speech Translate Tool\SyncSubTranslate\app\__main__.py", line 45, in _run_as_ui
+    LauncherWindow(root)
+    ~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\eugen\Desktop\Speech Translate Tool\SyncSubTranslate\app\launcher.py", line 41, in __init__
+    self._switch("service")
+    ~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\eugen\Desktop\Speech Translate Tool\SyncSubTranslate\app\launcher.py", line 135, in _switch
+    view = ServiceView(self._content, main_window=self)
+  File "C:\Users\eugen\Desktop\Speech Translate Tool\SyncSubTranslate\app\service.py", line 76, in __init__
+    self._build()
+    ~~~~~~~~~~~^^
+  File "C:\Users\eugen\Desktop\Speech Translate Tool\SyncSubTranslate\app\service.py", line 83, in _build
+    self._build_body()
+    ~~~~~~~~~~~~~~~~^^
+  File "C:\Users\eugen\Desktop\Speech Translate Tool\SyncSubTranslate\app\service.py", line 231, in _build_body
+    self._mic_menu, self._mic_refresh_btn, self._lang_menu,
+    ^^^^^^^^^^^^^^
+AttributeError: 'ServiceView' object has no attribute '_mic_menu'. Did you mean: '_bg_menu'?
+Traceback (most recent call last):
+  File "C:\Users\eugen\Desktop\Speech Translate Tool\SyncSubTranslate\app\__main__.py", line 54, in <module>
+    _run_as_ui()
+    ~~~~~~~~~~^^
+  File "C:\Users\eugen\Desktop\Speech Translate Tool\SyncSubTranslate\app\__main__.py", line 45, in _run_as_ui
+    LauncherWindow(root)
+    ~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\eugen\Desktop\Speech Translate Tool\SyncSubTranslate\app\launcher.py", line 41, in __init__
+    self._switch("service")
+    ~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\eugen\Desktop\Speech Translate Tool\SyncSubTranslate\app\launcher.py", line 158, in _switch
+    view = ServiceView(self._content, main_window=self)
+  File "C:\Users\eugen\Desktop\Speech Translate Tool\SyncSubTranslate\app\service.py", line 76, in __init__
+    self._build()
+    ~~~~~~~~~~~^^
+  File "C:\Users\eugen\Desktop\Speech Translate Tool\SyncSubTranslate\app\service.py", line 83, in _build
+    self._build_body()
+    ~~~~~~~~~~~~~~~~^^
+  File "C:\Users\eugen\Desktop\Speech Translate Tool\SyncSubTranslate\app\service.py", line 189, in _build_body
+    self._display_menu = ctk.CTkOptionMenu(
+                         ~~~~~~~~~~~~~~~~~^
+        disp, variable=self._display_var,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        values=["Translated only", "Original only", "Both"],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        **self._om(), dynamic_resizing=False,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\eugen\AppData\Roaming\Python\Python313\site-packages\customtkinter\windows\widgets\ctk_optionmenu.py", line 48, in __init__
+    super().__init__(master=master, bg_color=bg_color, width=width, height=height, **kwargs)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\eugen\AppData\Roaming\Python\Python313\site-packages\customtkinter\windows\widgets\core_widget_classes\ctk_base_class.py", line 46, in __init__
+    check_kwargs_empty(kwargs, raise_error=True)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\eugen\AppData\Roaming\Python\Python313\site-packages\customtkinter\windows\widgets\utility\utility_functions.py", line 18, in check_kwargs_empty
+    raise ValueError(f"{list(kwargs_dict.keys())} are not supported arguments. Look at the documentation for supported arguments.")
+ValueError: ['border_width', 'border_color'] are not supported arguments. Look at the documentation for supported arguments.
+Traceback (most recent call last):
+  File "C:\Users\eugen\Desktop\Speech Translate Tool\SyncSubTranslate\app\__main__.py", line 54, in <module>
+    _run_as_ui()
+    ~~~~~~~~~~^^
+  File "C:\Users\eugen\Desktop\Speech Translate Tool\SyncSubTranslate\app\__main__.py", line 45, in _run_as_ui
+    LauncherWindow(root)
+    ~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\eugen\Desktop\Speech Translate Tool\SyncSubTranslate\app\launcher.py", line 41, in __init__
+    self._switch("service")
+    ~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\eugen\Desktop\Speech Translate Tool\SyncSubTranslate\app\launcher.py", line 158, in _switch
+    view = ServiceView(self._content, main_window=self)
+  File "C:\Users\eugen\Desktop\Speech Translate Tool\SyncSubTranslate\app\service.py", line 76, in __init__
+    self._build()
+    ~~~~~~~~~~~^^
+  File "C:\Users\eugen\Desktop\Speech Translate Tool\SyncSubTranslate\app\service.py", line 83, in _build
+    self._build_body()
+    ~~~~~~~~~~~~~~~~^^
+  File "C:\Users\eugen\Desktop\Speech Translate Tool\SyncSubTranslate\app\service.py", line 189, in _build_body
+    self._display_menu = ctk.CTkOptionMenu(
+                         ~~~~~~~~~~~~~~~~~^
+        disp, variable=self._display_var,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        values=["Translated only", "Original only", "Both"],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        **self._om(), dynamic_resizing=False,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\eugen\AppData\Roaming\Python\Python313\site-packages\customtkinter\windows\widgets\ctk_optionmenu.py", line 48, in __init__
+    super().__init__(master=master, bg_color=bg_color, width=width, height=height, **kwargs)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\eugen\AppData\Roaming\Python\Python313\site-packages\customtkinter\windows\widgets\core_widget_classes\ctk_base_class.py", line 46, in __init__
+    check_kwargs_empty(kwargs, raise_error=True)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\eugen\AppData\Roaming\Python\Python313\site-packages\customtkinter\windows\widgets\utility\utility_functions.py", line 18, in check_kwargs_empty
+    raise ValueError(f"{list(kwargs_dict.keys())} are not supported arguments. Look at the documentation for supported arguments.")
+ValueError: ['border_width', 'border_color'] are not supported arguments. Look at the documentation for supported arguments.

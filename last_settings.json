@@ -1,12 +1,12 @@
 {
   "room": "Room 1",
-  "api_key": "sk-c848e604b3924059ad30db4810de719c",
+  "api_key": "",
   "lang": "Chinese \u2194 English",
   "mic": "Microsoft Sound Mapper - Input",
   "monitor_ip": "",
   "display": "Both",
-  "zh_size": "45",
-  "en_size": "45",
+  "zh_size": "30",
+  "en_size": "30",
   "zh_color": "Blue",
   "en_color": "Green",
   "bg": "Black"
