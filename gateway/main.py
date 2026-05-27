@@ -254,7 +254,7 @@ async def ws_endpoint(websocket: WebSocket):
 
 
 # ─── Sentence boundary helpers ─────────────────────────────────────────────────
-_SENTENCE_RE = re.compile(r'[。？！.?!]+')
+_SENTENCE_RE = re.compile(r'[。？！]+')
 _CJK_RE     = re.compile(r'[一-鿿]')
 _WORD_RE    = re.compile(r'[a-zA-Z]+')
 
