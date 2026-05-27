@@ -94,8 +94,7 @@
       display: flex;
       flex-direction: column;
       justify-content: flex-end;
-      padding: 32px 80px 90px;
-      position: relative;
+      padding: 32px 80px 32px;
       overflow: hidden;
     }
 
@@ -106,12 +105,14 @@
       gap: 22px;
     }
 
-    /* ── Partial overlay (absolute within subtitle-area, never shifts finals) */
+    /* ── Partial line — in normal flow so it can never overlap finals.
+          min-height reserves one line so the finals above don't jump when
+          the first characters arrive. flex-shrink:0 keeps it fully visible
+          even when many finals are stacked above (overflow clips the top). */
     #partial-wrap {
-      position: absolute;
-      bottom: 32px;
-      left: 80px;
-      right: 80px;
+      flex-shrink: 0;
+      min-height: calc(var(--zh-size) * 1.35);
+      padding-top: 16px;
       opacity: 0.45;
     }
 
@@ -274,6 +275,7 @@
       if (data.status === 'final') {
         partial = null;
         finals.push({ zh: data.zh, en: data.en || '' });
+        if (finals.length > 30) finals = finals.slice(-30); // keep recent 30; older ones are off-screen anyway
         if (isRecording) recordedLines.push({ zh: data.zh, en: data.en || '', ts: data.ts || new Date().toISOString() });
         renderFinals();
         renderPartial();

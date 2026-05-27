@@ -295,22 +295,49 @@ class ServiceWindow(ctk.CTkToplevel):
         if _PYAUDIO_OK:
             try:
                 p = pyaudio.PyAudio()
+
+                # On Windows, each physical device is listed once per host API
+                # (MME, DirectSound, WASAPI), so a single USB sound card or mic
+                # shows up 2–3 times.  Strategy: scan everything, deduplicate by
+                # name (case-insensitive), but upgrade to the WASAPI entry if one
+                # exists — WASAPI gives lower latency and also correctly represents
+                # external USB audio interfaces.  This ensures external gear is
+                # never hidden (unlike a hard WASAPI-only filter).
+                wasapi_api: int | None = None
+                for h in range(p.get_host_api_count()):
+                    if "WASAPI" in p.get_host_api_info_by_index(h).get("name", ""):
+                        wasapi_api = h
+                        break
+
+                # key → (device_index, display_name, is_wasapi)
+                seen: dict[str, tuple[int, str, bool]] = {}
                 for i in range(p.get_device_count()):
                     info = p.get_device_info_by_index(i)
-                    if int(info["maxInputChannels"]) > 0:
-                        devices.append((i, info["name"]))
+                    if int(info["maxInputChannels"]) <= 0:
+                        continue
+                    name: str = info["name"]
+                    key = name.strip().lower()
+                    is_wasapi = wasapi_api is not None and info["hostApi"] == wasapi_api
+                    if key not in seen or (is_wasapi and not seen[key][2]):
+                        seen[key] = (i, name, is_wasapi)
+
+                # Sort by device index for a stable, predictable order
+                devices = [
+                    (idx, dname)
+                    for idx, dname, _ in sorted(seen.values(), key=lambda x: x[0])
+                ]
                 p.terminate()
             except Exception:
                 pass
         self._mic_devices = devices
-        names = [f"[{i}] {name}" for i, name in devices] or ["(No microphone detected)"]
+        names = [name for _, name in devices] or ["(No microphone detected)"]
         self._mic_menu.configure(values=names)
         self._mic_var.set(names[0])
 
     def _selected_index(self) -> int | None:
         val = self._mic_var.get()
-        for i, _ in self._mic_devices:
-            if val.startswith(f"[{i}]"):
+        for i, name in self._mic_devices:
+            if name == val:
                 return i
         return None
 
@@ -426,10 +453,13 @@ class ServiceWindow(ctk.CTkToplevel):
     # ── Settings persistence ──────────────────────────────────────────────────
 
     def _save_settings(self) -> None:
+        # Save the mic by name, not index — indices shift when devices are
+        # plugged/unplugged, but the name stays stable across sessions.
         data = {
             "room":       self._room_var.get(),
             "api_key":    self._api_var.get(),
             "lang":       self._lang_var.get(),
+            "mic":        self._mic_var.get(),
             "monitor_ip": self._monitor_var.get(),
             "display":    self._display_var.get(),
             "zh_size":    self._zh_size_var.get(),
@@ -459,6 +489,23 @@ class ServiceWindow(ctk.CTkToplevel):
         self._zh_color_var.set(data.get("zh_color", "Blue"))
         self._en_color_var.set(data.get("en_color", "Green"))
         self._bg_var.set(data.get("bg", "Black"))
+
+        # Restore mic: match saved name against the current device list.
+        # Indices can change between sessions, so we match by name first.
+        saved_mic = data.get("mic", "")
+        if saved_mic and self._mic_devices:
+            # Exact name match
+            for _, name in self._mic_devices:
+                if name == saved_mic:
+                    self._mic_var.set(name)
+                    break
+            else:
+                # Fuzzy fallback: saved name is a substring of current name
+                # (handles minor driver-version renames, e.g. "(WDM)" suffix changes)
+                for _, name in self._mic_devices:
+                    if saved_mic in name or name in saved_mic:
+                        self._mic_var.set(name)
+                        break
 
     # ── Navigation ────────────────────────────────────────────────────────────
 
