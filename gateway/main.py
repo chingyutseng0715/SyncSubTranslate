@@ -56,16 +56,27 @@ BG_COLOR = os.getenv("BG_COLOR", "#000000")
 
 import sys as _sys
 if getattr(_sys, "frozen", False):
-    # PyInstaller 6: datas land in _MEIPASS (_internal/), logs beside the exe
-    BASE_DIR   = Path(_sys._MEIPASS) / "gateway"
+    # PyInstaller 6: bundled datas land in _MEIPASS (_internal/)
+    BASE_DIR    = Path(_sys._MEIPASS) / "gateway"
     SCREEN_PATH = Path(_sys._MEIPASS) / "screen"
-    LOG_DIR    = Path(_sys.executable).parent / "logs"
+    # Logs go into the user data dir (passed by runner.py via AI_DATA_DIR).
+    # If the env var is missing for some reason, fall back to %APPDATA%.
+    _data_root = os.environ.get("AI_DATA_DIR")
+    if _data_root:
+        LOG_DIR = Path(_data_root) / "logs"
+    elif _sys.platform == "win32":
+        _appdata = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
+        LOG_DIR = Path(_appdata) / "AIInterpretation" / "logs"
+    elif _sys.platform == "darwin":
+        LOG_DIR = Path.home() / "Library" / "Application Support" / "AIInterpretation" / "logs"
+    else:
+        LOG_DIR = Path.home() / ".aiinterpretation" / "logs"
 else:
-    BASE_DIR   = Path(__file__).parent
+    BASE_DIR    = Path(__file__).parent
     SCREEN_PATH = BASE_DIR.parent / "screen"
-    LOG_DIR    = BASE_DIR.parent / "logs"
+    LOG_DIR     = BASE_DIR.parent / "logs"
 TERMS_PATH = BASE_DIR / "terms.json"
-LOG_DIR.mkdir(exist_ok=True)
+LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 # ─── Global in-memory state ────────────────────────────────────────────────────
 _terms: dict = {}

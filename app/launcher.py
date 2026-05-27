@@ -145,7 +145,7 @@ class MainWindow(ctk.CTkToplevel):
         self._dyn.append((settings_btn, lambda: f"  ⚙   {t('settings')}"))
 
         ctk.CTkLabel(
-            sb, text="v1.1.14",
+            sb, text="v1.1.15",
             font=ctk.CTkFont(size=10), text_color=_TEXT3,
         ).grid(row=5, column=0, pady=(0, 14))
 

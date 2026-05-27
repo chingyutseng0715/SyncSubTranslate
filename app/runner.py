@@ -43,6 +43,9 @@ class GatewayRunner:
             cmd = [sys.executable, "--gateway", idx]
             # cwd = the _internal/gateway dir where bundled gateway files live
             cwd = str(Path(sys._MEIPASS) / "gateway")
+            # Tell gateway where to write logs (user data dir, not beside the exe)
+            from app.paths import user_data_dir
+            env["AI_DATA_DIR"] = str(user_data_dir())
         else:
             # Development: launch gateway/main.py directly
             if device_index is not None:

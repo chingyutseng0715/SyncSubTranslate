@@ -4,7 +4,6 @@ import threading
 import time
 import urllib.request
 import webbrowser
-from pathlib import Path
 
 import customtkinter as ctk
 
@@ -17,11 +16,7 @@ except Exception:
 from app.heartbeat import HeartbeatSender
 from app.runner import GatewayRunner
 from app.i18n import t, on_change
-
-def _settings_path() -> Path:
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent / "last_settings.json"
-    return Path(__file__).parent.parent / "last_settings.json"
+from app.paths import settings_path as _settings_path
 
 
 # ── Design tokens (keep in sync with launcher.py) ─────────────────────────────

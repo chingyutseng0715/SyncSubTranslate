@@ -1,12 +1,7 @@
 import sys
 import traceback
-from pathlib import Path
 
-
-def _error_log_path() -> Path:
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent / "error.log"
-    return Path(__file__).parent.parent / "error.log"
+from app.paths import error_log_path as _error_log_path
 
 
 def _run_as_gateway() -> None:
@@ -15,6 +10,7 @@ def _run_as_gateway() -> None:
     Launched by runner.py when frozen:  AIInterpretation.exe --gateway <idx|none>
     """
     import os
+    from pathlib import Path
     from dotenv import load_dotenv
 
     device_arg = sys.argv[2] if len(sys.argv) > 2 else "none"
