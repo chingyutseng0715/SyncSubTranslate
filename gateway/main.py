@@ -719,7 +719,7 @@ async def on_startup():
     if os.getenv("DISABLE_AUDIO", "").lower() in ("1", "true", "yes"):
         logger.warning("DISABLE_AUDIO=1: microphone capture disabled (test/demo mode)")
     else:
-        loop_fn = _run_asr_loop if ASR_MODEL.startswith("paraformer") else _run_realtime_asr_loop
+        loop_fn = _run_realtime_asr_loop if ASR_MODEL.startswith("qwen3") else _run_asr_loop
         t = threading.Thread(target=loop_fn, daemon=True, name="asr-audio")
         t.start()
         logger.info("ASR backend: %s", ASR_MODEL)
