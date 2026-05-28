@@ -212,7 +212,7 @@ class ServiceView(ctk.CTkFrame):
 
         self._runner = GatewayRunner()
         self._sender = HeartbeatSender()
-        self._mic_devices: list[tuple[int, str]] = []
+        self._mic_devices: list[tuple[int | None, str]] = []
         self._health: dict = {}
         self._health_stop = threading.Event()
 
@@ -592,61 +592,79 @@ class ServiceView(ctk.CTkFrame):
     # ── Microphone helpers ────────────────────────────────────────────────────
 
     def _refresh_mics(self) -> None:
-        devices: list[tuple[int, str]] = []
-        if _PYAUDIO_OK:
+        devices: list[tuple[int | None, str]] = []
+
+        # ── Primary path: Windows IMMDeviceEnumerator ─────────────────────────
+        # Enumerate exactly the devices Windows Sound Settings shows, then look
+        # up each device's PyAudio index separately (three-pass name matching).
+        active_names, default_name = _win_active_mics()
+        if active_names and _PYAUDIO_OK:
             try:
                 p = pyaudio.PyAudio()
-
-                # Step 1 — collect all input devices, preferring WASAPI entries
-                # (WASAPI gives lower latency; deduplication removes the MME /
-                # DirectSound clones that PortAudio exposes for the same hardware).
                 wasapi_api: int | None = None
                 for h in range(p.get_host_api_count()):
                     if "WASAPI" in p.get_host_api_info_by_index(h).get("name", ""):
                         wasapi_api = h
                         break
 
-                seen: dict[str, tuple[int, str, bool]] = {}
-                for i in range(p.get_device_count()):
-                    info = p.get_device_info_by_index(i)
-                    if int(info["maxInputChannels"]) <= 0:
-                        continue
-                    name: str = info["name"]
-                    key = name.strip().lower()
-                    is_wasapi = wasapi_api is not None and info["hostApi"] == wasapi_api
-                    if key not in seen or (is_wasapi and not seen[key][2]):
-                        seen[key] = (i, name, is_wasapi)
-
-                all_devs: list[tuple[int, str]] = [
-                    (idx, dname)
-                    for idx, dname, _ in sorted(seen.values(), key=lambda x: x[0])
+                wasapi_devs: list[tuple[int, str]] = [
+                    (i, info["name"])
+                    for i in range(p.get_device_count())
+                    if int((info := p.get_device_info_by_index(i))["maxInputChannels"]) > 0
+                    and (wasapi_api is None or info["hostApi"] == wasapi_api)
                 ]
                 p.terminate()
 
-                # Step 2 — Windows: keep only DEVICE_STATE_ACTIVE endpoints.
-                # This mirrors what Teams/Zoom show: no disabled, unplugged,
-                # or virtual HDMI/DP sinks appear.  Falls back to all_devs if
-                # the COM query returns nothing useful.
-                active_names, default_name = _win_active_mics()
-                if active_names:
-                    active_lower = {n.lower() for n in active_names}
-                    filtered = [
-                        (idx, name) for idx, name in all_devs
-                        if name.lower() in active_lower
-                    ]
-                    if filtered:
-                        all_devs = filtered
+                used: set[int] = set()
 
-                # Step 3 — put the system-default mic first so it's pre-selected.
+                def _find_idx(win_name: str) -> int | None:
+                    wl = win_name.lower()
+                    wb = wl.split("(")[0].strip()
+                    for test in (
+                        lambda pl: pl == wl,                               # exact
+                        lambda pl: pl.startswith(wl) or wl.startswith(pl),# one is prefix of other
+                        lambda pl: pl.split("(")[0].strip() == wb,         # base name only
+                    ):
+                        for idx, pyname in wasapi_devs:
+                            if idx not in used and test(pyname.lower()):
+                                used.add(idx)
+                                return idx
+                    return None
+
+                for win_name in active_names:
+                    devices.append((_find_idx(win_name), win_name))
+
+                # Put default mic first
                 if default_name:
-                    def_lower = default_name.lower()
-                    for i, (idx, name) in enumerate(all_devs):
-                        if name.lower() == def_lower:
+                    dl = default_name.lower()
+                    for i, (_, name) in enumerate(devices):
+                        if name.lower() == dl:
                             if i != 0:
-                                all_devs.insert(0, all_devs.pop(i))
+                                devices.insert(0, devices.pop(i))
                             break
 
-                devices = all_devs
+            except Exception:
+                pass
+
+        # ── Fallback: PyAudio WASAPI (non-Windows or COM failure) ─────────────
+        if not devices and _PYAUDIO_OK:
+            try:
+                p = pyaudio.PyAudio()
+                wasapi_api = None
+                for h in range(p.get_host_api_count()):
+                    if "WASAPI" in p.get_host_api_info_by_index(h).get("name", ""):
+                        wasapi_api = h
+                        break
+                seen: dict[str, tuple[int, str]] = {}
+                for i in range(p.get_device_count()):
+                    info = p.get_device_info_by_index(i)
+                    if int(info["maxInputChannels"]) > 0:
+                        if wasapi_api is None or info["hostApi"] == wasapi_api:
+                            key = info["name"].strip().lower()
+                            if key not in seen:
+                                seen[key] = (i, info["name"])
+                p.terminate()
+                devices = list(seen.values())
             except Exception:
                 pass
 

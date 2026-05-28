@@ -8,6 +8,7 @@ AI Conference Real-time Interpretation Gateway
 - No database; all state is in-memory
 """
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -537,6 +538,171 @@ async def clear_logs_endpoint():
     return {"ok": True}
 
 
+# ─── Realtime API ASR loop (qwen3-asr-flash / fun-asr-realtime) ───────────────
+def _run_realtime_asr_loop() -> None:
+    """
+    OpenAI-compatible Realtime API WebSocket protocol used by newer DashScope
+    ASR models.  Replaces the DashScope SDK Recognition path for any model
+    that is NOT paraformer-based.
+    """
+    import websocket as _ws_lib
+
+    device_index = os.getenv("PYAUDIO_DEVICE_INDEX", "")
+    dev_idx = int(device_index) if device_index.strip() else None
+
+    while True:
+        stream = None
+        pa = None
+        _ws_conn: list = [None]          # mutable box shared with closures
+        _audio_ready = threading.Event()
+        _stop = threading.Event()
+        _partial_buf: list[str] = []
+
+        def _push(text: str, is_final: bool) -> None:
+            if not text.strip() or not (_event_loop and _subtitle_queue):
+                return
+            msg = {"status": "final" if is_final else "partial", "zh": text.strip()}
+            asyncio.run_coroutine_threadsafe(_subtitle_queue.put(msg), _event_loop)
+
+        def on_open(ws):
+            _ws_conn[0] = ws
+            session_event = {
+                "event_id": "event_session_init",
+                "type": "session.update",
+                "session": {
+                    "modalities": ["text"],
+                    "input_audio_format": "pcm",
+                    "sample_rate": 16000,
+                    "input_audio_transcription": {"language": "zh"},
+                    "turn_detection": {
+                        "type": "server_vad",
+                        "threshold": 0.2,
+                        "silence_duration_ms": 800,
+                    },
+                },
+            }
+            ws.send(json.dumps(session_event))
+            logger.info("Realtime ASR session initialised (model=%s)", ASR_MODEL)
+            _audio_ready.set()
+
+        def on_message(ws, message):
+            try:
+                data = json.loads(message)
+                etype = data.get("type", "")
+
+                if etype == "input_audio_buffer.speech_started":
+                    _partial_buf.clear()
+
+                elif etype == "conversation.item.input_audio_transcription.delta":
+                    delta = data.get("delta", "")
+                    if delta:
+                        _partial_buf.append(delta)
+                        _push("".join(_partial_buf), is_final=False)
+
+                elif etype == "conversation.item.input_audio_transcription.completed":
+                    text = data.get("transcript", "") or "".join(_partial_buf)
+                    _partial_buf.clear()
+                    _push(text, is_final=True)
+
+                elif etype == "response.text.delta":
+                    delta = data.get("delta", "")
+                    if delta:
+                        _partial_buf.append(delta)
+                        _push("".join(_partial_buf), is_final=False)
+
+                elif etype == "response.text.done":
+                    text = data.get("text", "") or "".join(_partial_buf)
+                    _partial_buf.clear()
+                    _push(text, is_final=True)
+
+                elif etype == "error":
+                    logger.error("Realtime ASR error event: %s", data.get("error", data))
+
+            except Exception as exc:
+                logger.error("Realtime ASR on_message error: %s", exc)
+
+        def on_error(ws, error):
+            logger.error("Realtime ASR WebSocket error: %s", error)
+
+        def on_close(ws, code, msg):
+            logger.info("Realtime ASR WebSocket closed (%s)", code)
+            _stop.set()
+
+        try:
+            pa = pyaudio.PyAudio()
+            dev_info = (
+                pa.get_device_info_by_index(dev_idx)
+                if dev_idx is not None
+                else pa.get_default_input_device_info()
+            )
+            native_rate = int(dev_info["defaultSampleRate"])
+            native_channels = min(int(dev_info["maxInputChannels"]), 2)
+            native_frames = int(native_rate * 0.1)
+            logger.info(
+                "Audio device: [%s] %s  %dHz %dch → resampling to 16kHz mono",
+                dev_info["index"], dev_info["name"], native_rate, native_channels,
+            )
+
+            url = f"wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model={ASR_MODEL}"
+            headers = [
+                f"Authorization: Bearer {dashscope.api_key}",
+                "OpenAI-Beta: realtime=v1",
+            ]
+            ws_app = _ws_lib.WebSocketApp(
+                url, header=headers,
+                on_open=on_open, on_message=on_message,
+                on_error=on_error, on_close=on_close,
+            )
+            threading.Thread(
+                target=ws_app.run_forever, daemon=True, name="asr-ws"
+            ).start()
+
+            if not _audio_ready.wait(timeout=10):
+                raise RuntimeError("Realtime ASR WebSocket did not open within 10s")
+
+            stream = pa.open(
+                rate=native_rate,
+                channels=native_channels,
+                format=pyaudio.paInt16,
+                input=True,
+                input_device_index=dev_idx,
+                frames_per_buffer=native_frames,
+            )
+
+            seq = 0
+            while not _stop.is_set():
+                raw = stream.read(native_frames, exception_on_overflow=False)
+                pcm_16k = _to_mono_16k(raw, native_rate, native_channels)
+                seq += 1
+                evt = {
+                    "event_id": f"audio_{seq}",
+                    "type": "input_audio_buffer.append",
+                    "audio": base64.b64encode(pcm_16k).decode("utf-8"),
+                }
+                conn = _ws_conn[0]
+                if conn:
+                    conn.send(json.dumps(evt))
+
+        except Exception as exc:
+            logger.error("Realtime ASR/audio error — restarting in 3s: %s", exc)
+        finally:
+            for obj, method in [
+                (stream, "stop_stream"), (stream, "close"), (pa, "terminate"),
+            ]:
+                if obj:
+                    try:
+                        getattr(obj, method)()
+                    except Exception:
+                        pass
+            if _ws_conn[0]:
+                try:
+                    _ws_conn[0].close()
+                except Exception:
+                    pass
+
+        time.sleep(3)
+
+
 # ─── Startup ────────────────────────────────────────────────────────────────────
 async def on_startup():
     global _event_loop, _subtitle_queue
@@ -553,8 +719,10 @@ async def on_startup():
     if os.getenv("DISABLE_AUDIO", "").lower() in ("1", "true", "yes"):
         logger.warning("DISABLE_AUDIO=1: microphone capture disabled (test/demo mode)")
     else:
-        t = threading.Thread(target=_run_asr_loop, daemon=True, name="asr-audio")
+        loop_fn = _run_asr_loop if ASR_MODEL.startswith("paraformer") else _run_realtime_asr_loop
+        t = threading.Thread(target=loop_fn, daemon=True, name="asr-audio")
         t.start()
+        logger.info("ASR backend: %s", ASR_MODEL)
 
     logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     logger.info("Gateway ready  →  http://localhost:%d/", PORT)

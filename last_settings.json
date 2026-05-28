@@ -1,8 +1,8 @@
 {
-  "room": "djidjfidfd",
-  "api_key": "",
+  "room": "Room 1",
+  "api_key": "sk-c848e604b3924059ad30db4810de719c",
   "lang": "Chinese \u2194 English",
-  "mic": "Microphone (MagicMic Virtual Audio Device(WDM))",
+  "mic": "Microphone Array (Intel\u00ae Smart Sound Technology for Digital Microphones)",
   "monitor_ip": "",
   "display": "Both",
   "zh_size": "30",
@@ -10,5 +10,7 @@
   "zh_color": "Blue",
   "en_color": "Green",
   "bg": "Black",
-  "app_theme": "Light"
+  "app_theme": "Light",
+  "asr_model": "qwen3-asr-flash-realtime-2026-02-10",
+  "translate_model": "qwen-plus"
 }
