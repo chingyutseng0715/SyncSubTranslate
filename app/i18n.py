@@ -49,6 +49,12 @@ _T: dict[str, dict[str, str]] = {
         # Service — audio fields
         "microphone":       "Microphone",
         "lang_pair":        "Language",
+        # Service — ASR model
+        "sec_asr":          "ASR MODEL",
+        "asr_model":        "Model",
+        # Service — translation model
+        "sec_translate":    "TRANSLATION MODEL",
+        "translate_model":  "Model",
         # Monitor
         "mon_subtitle":     "Live status of Subtitle Service nodes on the LAN",
         "waiting_hb":       "Waiting for heartbeats...",
@@ -62,6 +68,9 @@ _T: dict[str, dict[str, str]] = {
         "lang_en":          "English",
         "lang_zh_cn":       "Simplified Chinese",
         "lang_zh_tw":       "Traditional Chinese",
+        "theme_mode":       "Theme",
+        "theme_light":      "Light",
+        "theme_dark":       "Dark",
     },
 
     "zh_cn": {
@@ -93,6 +102,10 @@ _T: dict[str, dict[str, str]] = {
         "background":       "背景颜色",
         "microphone":       "麦克风",
         "lang_pair":        "语言",
+        "sec_asr":          "识别模型",
+        "asr_model":        "模型",
+        "sec_translate":    "翻译模型",
+        "translate_model":  "模型",
         "mon_subtitle":     "局域网字幕服务节点实时状态",
         "waiting_hb":       "等待心跳包...",
         "this_ip":          "本机 IP 地址：",
@@ -104,6 +117,9 @@ _T: dict[str, dict[str, str]] = {
         "lang_en":          "English",
         "lang_zh_cn":       "简体中文",
         "lang_zh_tw":       "繁体中文",
+        "theme_mode":       "主题",
+        "theme_light":      "浅色",
+        "theme_dark":       "深色",
     },
 
     "zh_tw": {
@@ -135,6 +151,10 @@ _T: dict[str, dict[str, str]] = {
         "background":       "背景顏色",
         "microphone":       "麥克風",
         "lang_pair":        "語言",
+        "sec_asr":          "識別模型",
+        "asr_model":        "模型",
+        "sec_translate":    "翻譯模型",
+        "translate_model":  "模型",
         "mon_subtitle":     "區域網路字幕服務節點即時狀態",
         "waiting_hb":       "等待心跳包...",
         "this_ip":          "本機 IP 位址：",
@@ -146,6 +166,9 @@ _T: dict[str, dict[str, str]] = {
         "lang_en":          "English",
         "lang_zh_cn":       "簡體中文",
         "lang_zh_tw":       "繁體中文",
+        "theme_mode":       "主題",
+        "theme_light":      "淺色",
+        "theme_dark":       "深色",
     },
 }
 

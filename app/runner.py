@@ -22,6 +22,8 @@ class GatewayRunner:
               display_mode: str = "both", zh_size: int = 30, en_size: int = 30,
               zh_color: str = "#7dd3fc", en_color: str = "#4ade80",
               bg_color: str = "#000000",
+              asr_model: str = "paraformer-realtime-v2",
+              translate_model: str = "qwen-plus",
               on_line: Callable[[str], None] | None = None) -> None:
         if self.running:
             return
@@ -37,6 +39,8 @@ class GatewayRunner:
         env["ZH_COLOR"] = zh_color
         env["EN_COLOR"] = en_color
         env["BG_COLOR"] = bg_color
+        env["ASR_MODEL"] = asr_model
+        env["TRANSLATE_MODEL"] = translate_model
 
         if getattr(sys, "frozen", False):
             # Bundled exe: relaunch self with --gateway flag

@@ -6,8 +6,9 @@ import customtkinter as ctk
 
 from app.heartbeat import HeartbeatReceiver, HEARTBEAT_PORT, HEARTBEAT_TIMEOUT, local_ip
 from app.i18n import t, on_change
+from app.theme import palette as _theme_palette, on_theme_change
 
-# ── Design tokens (keep in sync with launcher.py) ─────────────────────────────
+# ── Design tokens — synced from app.theme ─────────────────────────────────────
 _BG        = "#f5f6fa"
 _SURFACE   = "#ffffff"
 _ACCENT    = "#3b82f6"
@@ -17,12 +18,24 @@ _TEXT2     = "#6b7280"
 _TEXT3     = "#9ca3af"
 _BORDER    = "#e5e7eb"
 
+# Status colours stay constant across themes (semantic meaning)
 _OK      = "#16a34a"
 _WARN    = "#d97706"
 _ERROR   = "#dc2626"
 _OK_BG   = "#f0fdf4"
 _WARN_BG = "#fffbeb"
 _ERR_BG  = "#fef2f2"
+
+
+def _sync_colors() -> None:
+    p = _theme_palette()
+    global _BG, _SURFACE, _ACCENT, _ACCENT_LT, _TEXT, _TEXT2, _TEXT3, _BORDER
+    _BG = p["BG"]; _SURFACE = p["SURFACE"]; _ACCENT = p["ACCENT"]
+    _ACCENT_LT = p["ACCENT_LT"]; _TEXT = p["TEXT"]; _TEXT2 = p["TEXT2"]
+    _TEXT3 = p["TEXT3"]; _BORDER = p["BORDER"]
+
+
+_sync_colors()  # sync at module load
 
 COLS   = 3
 CARD_W = 220
@@ -56,6 +69,8 @@ class MonitorView(ctk.CTkFrame):
 
         # i18n: (widget, key) pairs updated on language change
         self._dyn: list[tuple] = []
+        # Widgets tracked for configure-in-place theme updates
+        self._themed: list[tuple] = []
 
         # row 0 = header, row 1 = ip bar, row 2 = card grid (expands), row 3 = footer
         self.grid_columnconfigure(0, weight=1)
@@ -69,14 +84,23 @@ class MonitorView(ctk.CTkFrame):
         self._build()
         self._tick()
         on_change(self._apply_lang)
+        on_theme_change(self._apply_theme)
+
+    # ── Registration helper ────────────────────────────────────────────────────
+
+    def _r(self, widget, **roles):
+        self._themed.append((widget, roles))
+        return widget
 
     # ── Build UI ───────────────────────────────────────────────────────────────
 
     def _build(self) -> None:
         # ── Header bar ────────────────────────────────────────────────────
-        hdr = ctk.CTkFrame(self, fg_color=_SURFACE, corner_radius=0)
+        hdr = self._r(ctk.CTkFrame(self, fg_color=_SURFACE, corner_radius=0),
+                      fg_color="SURFACE")
         hdr.grid(row=0, column=0, sticky="ew")
-        ctk.CTkFrame(hdr, height=1, fg_color=_BORDER).pack(side="bottom", fill="x")
+        self._r(ctk.CTkFrame(hdr, height=1, fg_color=_BORDER),
+                fg_color="BORDER").pack(side="bottom", fill="x")
 
         inner = ctk.CTkFrame(hdr, fg_color="transparent")
         inner.pack(fill="x", padx=28, pady=14)
@@ -84,87 +108,110 @@ class MonitorView(ctk.CTkFrame):
         left = ctk.CTkFrame(inner, fg_color="transparent")
         left.pack(side="left")
 
-        title_lbl = ctk.CTkLabel(
-            left, text=t("monitor_center"),
-            font=ctk.CTkFont(size=18, weight="bold"), text_color=_TEXT,
-        )
+        title_lbl = self._r(ctk.CTkLabel(left, text=t("monitor_center"),
+                                         font=ctk.CTkFont(size=18, weight="bold"),
+                                         text_color=_TEXT),
+                            text_color="TEXT")
         title_lbl.pack(anchor="w")
         self._dyn.append((title_lbl, "monitor_center"))
 
-        sub_lbl = ctk.CTkLabel(
-            left, text=t("mon_subtitle"),
-            font=ctk.CTkFont(size=11), text_color=_TEXT3,
-        )
+        sub_lbl = self._r(ctk.CTkLabel(left, text=t("mon_subtitle"),
+                                       font=ctk.CTkFont(size=11), text_color=_TEXT3),
+                          text_color="TEXT3")
         sub_lbl.pack(anchor="w")
         self._dyn.append((sub_lbl, "mon_subtitle"))
 
-        self._summary_lbl = ctk.CTkLabel(
-            inner, text=t("waiting_hb"),
-            font=ctk.CTkFont(size=12), text_color=_TEXT3,
-        )
+        self._summary_lbl = self._r(ctk.CTkLabel(inner, text=t("waiting_hb"),
+                                                 font=ctk.CTkFont(size=12),
+                                                 text_color=_TEXT3),
+                                    text_color="TEXT3")
         self._summary_lbl.pack(side="right")
 
         # ── IP info bar ────────────────────────────────────────────────────
-        ip_bar = ctk.CTkFrame(self, fg_color=_ACCENT_LT, corner_radius=0)
+        ip_bar = self._r(ctk.CTkFrame(self, fg_color=_ACCENT_LT, corner_radius=0),
+                         fg_color="ACCENT_LT")
         ip_bar.grid(row=1, column=0, sticky="ew")
-        ctk.CTkFrame(ip_bar, height=1, fg_color="#bfdbfe").pack(side="top", fill="x")
-        ctk.CTkFrame(ip_bar, height=1, fg_color="#bfdbfe").pack(side="bottom", fill="x")
+        self._r(ctk.CTkFrame(ip_bar, height=1, fg_color=_BORDER),
+                fg_color="BORDER").pack(side="top", fill="x")
+        self._r(ctk.CTkFrame(ip_bar, height=1, fg_color=_BORDER),
+                fg_color="BORDER").pack(side="bottom", fill="x")
 
         ip_inner = ctk.CTkFrame(ip_bar, fg_color="transparent")
         ip_inner.pack(fill="x", padx=28, pady=10)
 
-        ip_label = ctk.CTkLabel(
-            ip_inner, text=t("this_ip"),
-            font=ctk.CTkFont(size=12), text_color=_TEXT2,
-        )
+        ip_label = self._r(ctk.CTkLabel(ip_inner, text=t("this_ip"),
+                                        font=ctk.CTkFont(size=12), text_color=_TEXT2),
+                           text_color="TEXT2")
         ip_label.pack(side="left", padx=(0, 10))
         self._dyn.append((ip_label, "this_ip"))
 
-        ip_chip = ctk.CTkFrame(
-            ip_inner, fg_color=_SURFACE, corner_radius=6,
-            border_width=1, border_color="#bfdbfe",
-        )
+        ip_chip = self._r(ctk.CTkFrame(ip_inner, fg_color=_SURFACE, corner_radius=6,
+                                       border_width=1, border_color=_BORDER),
+                          fg_color="SURFACE", border_color="BORDER")
         ip_chip.pack(side="left", padx=(0, 14))
-        ctk.CTkLabel(
-            ip_chip, text=f"  {local_ip()}  ",
-            font=ctk.CTkFont(size=13, weight="bold"), text_color=_ACCENT,
-        ).pack(padx=2, pady=3)
+        self._r(ctk.CTkLabel(ip_chip, text=f"  {local_ip()}  ",
+                             font=ctk.CTkFont(size=13, weight="bold"),
+                             text_color=_ACCENT),
+                text_color="ACCENT").pack(padx=2, pady=3)
 
-        hint_lbl = ctk.CTkLabel(
-            ip_inner, text=t("ip_hint"),
-            font=ctk.CTkFont(size=11), text_color=_TEXT3,
-        )
+        hint_lbl = self._r(ctk.CTkLabel(ip_inner, text=t("ip_hint"),
+                                        font=ctk.CTkFont(size=11), text_color=_TEXT3),
+                           text_color="TEXT3")
         hint_lbl.pack(side="left")
         self._dyn.append((hint_lbl, "ip_hint"))
 
         # ── Card grid ──────────────────────────────────────────────────────
-        self._grid = ctk.CTkScrollableFrame(
-            self, fg_color=_BG, corner_radius=0,
-            scrollbar_button_color=_BORDER,
-            scrollbar_button_hover_color=_TEXT3,
+        self._grid = self._r(
+            ctk.CTkScrollableFrame(self, fg_color=_BG, corner_radius=0,
+                                   scrollbar_button_color=_BORDER,
+                                   scrollbar_button_hover_color=_TEXT3),
+            fg_color="BG", scrollbar_button_color="BORDER",
+            scrollbar_button_hover_color="TEXT3",
         )
         self._grid.grid(row=2, column=0, sticky="nsew", padx=0, pady=0)
         for c in range(COLS):
             self._grid.columnconfigure(c, weight=1, minsize=CARD_W)
 
-        self._empty_lbl = ctk.CTkLabel(
-            self._grid,
-            text="No rooms detected yet\n\nMake sure service laptops are on the same\nnetwork and have started the Subtitle Service",
-            font=ctk.CTkFont(size=13), text_color=_TEXT3, justify="center",
+        self._empty_lbl = self._r(
+            ctk.CTkLabel(self._grid,
+                         text="No rooms detected yet\n\nMake sure service laptops are on the same\nnetwork and have started the Subtitle Service",
+                         font=ctk.CTkFont(size=13), text_color=_TEXT3, justify="center"),
+            text_color="TEXT3",
         )
         self._empty_lbl.grid(row=0, column=0, columnspan=COLS, pady=80)
 
         # ── Footer ─────────────────────────────────────────────────────────
-        footer = ctk.CTkFrame(self, fg_color=_SURFACE, corner_radius=0)
+        footer = self._r(ctk.CTkFrame(self, fg_color=_SURFACE, corner_radius=0),
+                         fg_color="SURFACE")
         footer.grid(row=3, column=0, sticky="ew")
-        ctk.CTkFrame(footer, height=1, fg_color=_BORDER).pack(side="top", fill="x")
+        self._r(ctk.CTkFrame(footer, height=1, fg_color=_BORDER),
+                fg_color="BORDER").pack(side="top", fill="x")
 
-        footer_lbl = ctk.CTkLabel(
-            footer, text=t("footer_hint"),
-            font=ctk.CTkFont(size=11), text_color=_TEXT3,
-        )
+        footer_lbl = self._r(ctk.CTkLabel(footer, text=t("footer_hint"),
+                                          font=ctk.CTkFont(size=11), text_color=_TEXT3),
+                             text_color="TEXT3")
         footer_lbl.pack(pady=10)
         self._dyn.append((footer_lbl, "footer_hint"))
+
+    # ── Theme update (configure-in-place) ─────────────────────────────────────
+
+    def _apply_theme(self) -> None:
+        _sync_colors()
+        p = _theme_palette()
+        self.configure(fg_color=p["BG"])
+        # Static skeleton widgets
+        for widget, roles in self._themed:
+            if widget.winfo_exists():
+                widget.configure(**{k: p[v] for k, v in roles.items()})
+        # Room cards — update frame, room label, ip, detail text colors
+        for room, card in list(self._cards.items()):
+            if not card["frame"].winfo_exists():
+                continue
+            card["frame"].configure(fg_color=p["SURFACE"], border_color=p["BORDER"])
+            card["room_lbl"].configure(text_color=p["TEXT"])
+            card["ip"].configure(text_color=p["TEXT3"])
+            card["detail"].configure(text_color=p["TEXT2"])
+        self._refresh_summary()
 
     # ── Language update ────────────────────────────────────────────────────────
 
@@ -237,10 +284,11 @@ class MonitorView(ctk.CTkFrame):
         dot = ctk.CTkLabel(body, text="●", font=ctk.CTkFont(size=12), text_color=_OK)
         dot.grid(row=0, column=0, sticky="w", padx=(0, 6))
 
-        ctk.CTkLabel(
+        room_lbl = ctk.CTkLabel(
             body, text=room, anchor="w",
             font=ctk.CTkFont(size=14, weight="bold"), text_color=_TEXT,
-        ).grid(row=0, column=1, sticky="w")
+        )
+        room_lbl.grid(row=0, column=1, sticky="w")
 
         badge = ctk.CTkLabel(
             body, text="RUNNING",
@@ -264,12 +312,13 @@ class MonitorView(ctk.CTkFrame):
         detail_lbl.grid(row=2, column=0, columnspan=3, sticky="w", pady=(2, 0))
 
         self._cards[room] = {
-            "frame":  frame,
-            "accent": accent,
-            "dot":    dot,
-            "badge":  badge,
-            "ip":     ip_lbl,
-            "detail": detail_lbl,
+            "frame":    frame,
+            "accent":   accent,
+            "dot":      dot,
+            "room_lbl": room_lbl,
+            "badge":    badge,
+            "ip":       ip_lbl,
+            "detail":   detail_lbl,
         }
 
     def _refresh_card(self, room: str) -> None:

@@ -42,7 +42,7 @@ CHANNELS = 1
 SAMPLE_WIDTH = 2          # 16-bit PCM
 FRAME_BYTES = 3200        # 1600 samples = ~100ms at 16kHz/16bit/mono
 
-ASR_MODEL = "paraformer-realtime-v2"
+ASR_MODEL = os.getenv("ASR_MODEL", "paraformer-realtime-v2")
 TRANSLATE_MODEL = os.getenv("TRANSLATE_MODEL", "qwen-plus")
 TRANSLATE_TIMEOUT = float(os.getenv("TRANSLATE_TIMEOUT", "4.0"))
 PORT = int(os.getenv("PORT", "8000"))

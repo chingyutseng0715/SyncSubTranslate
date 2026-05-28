@@ -32,9 +32,10 @@ def _run_as_gateway() -> None:
 
 def _run_as_ui() -> None:
     import customtkinter as ctk
+    from app.theme import load_and_apply
     from app.launcher import LauncherWindow
 
-    ctk.set_appearance_mode("light")
+    load_and_apply()   # reads last_settings.json, sets ctk appearance mode
     ctk.set_default_color_theme("blue")
     root = ctk.CTk()
     root.withdraw()
