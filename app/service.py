@@ -247,7 +247,7 @@ class ServiceView(ctk.CTkFrame):
         self._bg_var       = ctk.StringVar(value="Black")
         self._lang_var     = ctk.StringVar(value="Chinese ↔ English")
         self._mic_var      = ctk.StringVar(value="Scanning...")
-        self._asr_var      = ctk.StringVar(value="paraformer-realtime-v2")
+        self._asr_var      = ctk.StringVar(value="qwen3-asr-flash-realtime-2026-02-10")
         self._translate_var = ctk.StringVar(value="qwen-plus")
 
     # ── Theme update (configure-in-place) ────────────────────────────────────
@@ -830,7 +830,7 @@ class ServiceView(ctk.CTkFrame):
         self._zh_color_var.set(data.get("zh_color", "Blue"))
         self._en_color_var.set(data.get("en_color", "Green"))
         self._bg_var.set(data.get("bg", "Black"))
-        self._asr_var.set(data.get("asr_model", "paraformer-realtime-v2"))
+        self._asr_var.set(data.get("asr_model", "qwen3-asr-flash-realtime-2026-02-10"))
         self._translate_var.set(data.get("translate_model", "qwen-plus"))
 
         # Restore mic by name — exact match first, then fuzzy substring fallback
