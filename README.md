@@ -1,7 +1,21 @@
-# AI Conference Real-time Interpretation System
+# SyncSubTranslate
 
-Real-time bilingual captioning for conference big screens.  
-Microphone → Alibaba Cloud ASR → Qwen LLM translation → WebSocket → browser display.
+Real-time AI-powered bilingual captioning for conference big screens.  
+Microphone → Speech Recognition → AI Translation → Browser Display — end-to-end under 3 seconds.
+
+---
+
+## Demo
+
+<!-- Insert demo video here -->
+
+---
+
+## Overview
+
+SyncSubTranslate is a desktop application built for live conference interpretation. It captures audio from a microphone, transcribes speech in real time using Alibaba Cloud ASR, translates each sentence with Qwen LLM, and pushes bilingual subtitles to a browser screen suitable for projection.
+
+Supported language pairs: **Chinese ↔ English** and **Chinese ↔ Japanese**.
 
 ---
 
@@ -14,112 +28,150 @@ Go to the [Releases](../../releases) page and download the latest version for yo
 | Windows | `AIInterpretation-Windows.zip` |
 | macOS | `AIInterpretation-Mac.zip` |
 
-**Windows:** Extract the zip, open the `AIInterpretation` folder, and double-click `AIInterpretation.exe`.  
+**Windows:** Extract the zip and double-click `AIInterpretation.exe`.  
 **macOS:** Extract the zip and open `AIInterpretation.app`. If macOS blocks it, go to System Settings → Privacy & Security → click "Open Anyway".
 
 ---
 
-## How It Works
+## Getting Started
 
-On launch, select the role for this computer:
+### 1. Obtain an API Key
 
-### Subtitle Service
-Runs on the laptop connected to the conference microphone.
-
-1. Enter a **Room Name** (e.g. "Main Hall")
-2. Paste your **DashScope API key** (masked with `*`)
-3. Select **Language**: Chinese ↔ English or Chinese ↔ Japanese
-4. Pick the correct **Microphone** from the dropdown (click ↻ to rescan)
-5. Optionally enter a **Monitor IP** — the IP address of the organizer's laptop running Monitor Center
-6. Choose a **Display** mode: Translated only, Original only, or Both
-7. Adjust **Font Size** and **Color** for original and translated text
-8. Click **Start Service**
-9. Click **Open Screen** — opens the subtitle display in your browser
-10. Double-click the browser window to go fullscreen and connect to the big screen
-
-### Monitor Center
-Runs on the organizer's laptop. Shows a live dashboard of every service room that has this computer's IP entered as Monitor IP.
-
-- The monitor window shows **this computer's IP** — enter it into each Subtitle Service laptop's Monitor IP field
-- Green dot = online; red dot = no response for 15+ seconds
-- Updates every 3 seconds; shows screen client count and terminology version per room
-- No server required — discovery uses direct UDP on port 47474
-
-> **Firewall note (Windows):** The app attempts to add a Windows Firewall rule automatically. If rooms don't appear after 20 seconds, run the app as Administrator once, or allow it manually under Windows Firewall → Allow an app.
-
----
-
-## Screen Display
-
-The browser subtitle screen (`http://localhost:8000`) shows:
-- **Partial text** (live, slightly faded) — updates as the speaker talks
-- **Final captions** (bright, locked) — appear on sentence completion with full translation
-- Up to 3 completed captions on screen at once
-- **Clock** top-left; **connection status** top-right
-- **Terminology version** badge bottom-right
-
-**Recording:** Click the ⏺ 录制 button to start recording all finalized captions. Click ⏹ 停止录制 to stop and download a `.doc` file with timestamps, original text, and translations.
-
-**Fullscreen:** Double-click anywhere to toggle fullscreen.
-
----
-
-## API Key
-
-This app uses Alibaba Cloud DashScope — one key covers both speech recognition and translation.
+SyncSubTranslate uses Alibaba Cloud DashScope — one key covers both speech recognition and translation.
 
 1. Sign up at [dashscope.console.aliyun.com](https://dashscope.console.aliyun.com/)
 2. Go to **API Keys** → **Create API Key**
-3. Paste the key into the app when starting the Subtitle Service
+3. Copy the key — you will paste it into the app when starting a session
 
-New accounts receive ¥200–500 in free credits, which is more than enough for a full conference day.
+New accounts receive free credits sufficient for a full conference day.
 
 **Estimated cost:**
-- ASR: ¥0.018 / minute
-- Translation: ¥0.035 / 1,000 characters
+| Service | Rate |
+|---------|------|
+| ASR (Paraformer / Qwen ASR) | ¥0.018 / minute |
+| Translation (Qwen LLM) | ¥0.035 / 1,000 characters |
 
 ---
 
-## Features
+### 2. Configure and Start
 
-- Real-time ASR via `paraformer-realtime-v2` (Chinese/English or Chinese/Japanese mixed input)
-- Partial results shown live while speaking; final sentence locks in with translation
-- Qwen LLM translation with conference terminology injection
-- Configurable display: Translated only / Original only / Both, with custom font sizes and colors
-- Terminology hot-reload — edit `gateway/terms.json` while running, applies within ~15 seconds
-- Auto-reconnect — screen and ASR both recover automatically from network drops
-- L2 fallback — if translation times out (>4s), shows original Chinese automatically while retrying
-- Monitor Center — single dashboard for all rooms over LAN, no server required
-- Session recording — download bilingual caption transcripts as `.doc` from the browser screen
+On launch, select **Subtitle Service**. Fill in the configuration form:
+
+| Field | Description |
+|-------|-------------|
+| Room Name | A label for this session (e.g. "Main Hall") |
+| DashScope API Key | Your Alibaba Cloud API key (masked after entry) |
+| Language Pair | `Chinese ↔ English` or `Chinese ↔ Japanese` |
+| Microphone | Select the input device; click ↻ to rescan |
+| ASR Model | Speech recognition model (see [ASR Models](#asr-models) below) |
+| Translation Model | LLM used for translation (see [Translation Models](#translation-models) below) |
+| Display Mode | Translated only / Original only / Both |
+| Font Size & Color | Customize subtitle appearance for both languages |
+| Background | Screen background color: Black / Dark Grey / Dark Blue |
+| Monitor IP | *(Optional)* IP of a Monitor Center laptop on the same LAN |
+
+Click **Start Service**, then **Open Screen** to launch the subtitle display in your browser.  
+Double-click the browser window to go fullscreen for projection.
+
+> **Tip:** Your last-used settings are saved automatically. Click **Use Last Settings** at the top of the form to restore them instantly at the next session.
 
 ---
 
-## Fallback Levels
+## ASR Models
+
+Three speech recognition models are available, each suited to different priorities:
+
+| Model | Protocol | Best For |
+|-------|----------|----------|
+| `paraformer-realtime-v2` | DashScope SDK | Stability-first deployments; proven in production |
+| `qwen3-asr-flash-realtime-2026-02-10` | Realtime API | Higher accuracy, especially for mixed-language speech |
+| `fun-asr-realtime-2026-02-28` | Realtime API | Alternative Realtime API option; FunASR-based backend |
+
+**`paraformer-realtime-v2`** (recommended for most events)  
+The classic DashScope SDK path. Mature, stable, and well-tested in conference environments. Lowest risk for mission-critical sessions.
+
+**`qwen3-asr-flash-realtime-2026-02-10`**  
+Uses the newer OpenAI-compatible Realtime API protocol. Delivers improved accuracy on mixed Chinese-English speech. Best choice when transcript quality matters most and you are comfortable with a newer model.
+
+**`fun-asr-realtime-2026-02-28`**  
+Also uses the Realtime API path. FunASR-based backend — a good alternative if `qwen3-asr-flash` is unavailable or rate-limited.
+
+> All three models automatically resample your microphone's native audio to 16kHz mono before sending to the API, so they work with any microphone regardless of its native sample rate.
+
+---
+
+## Translation Models
+
+Three Qwen LLM models are available for translation. Choose based on the trade-off between speed, cost, and accuracy:
+
+| Model | Speed | Cost | Accuracy | Best For |
+|-------|-------|------|----------|----------|
+| `qwen-turbo` | Fastest | Lowest | Good | High-volume sessions; tight budgets |
+| `qwen-plus` | Balanced | Medium | Very good | Most conferences *(default)* |
+| `qwen-max` | Slowest | Highest | Best | Technical sessions with complex terminology |
+
+**`qwen-turbo`**  
+The most responsive option. Translations typically arrive in under 1 second. Suitable when speaker pace is fast and sentence complexity is low. Occasionally produces less nuanced phrasing on highly technical content.
+
+**`qwen-plus`** *(recommended default)*  
+A well-balanced model for conference use. Handles professional vocabulary and mixed-language sentences reliably, with translation latency well within the 4-second threshold under normal network conditions.
+
+**`qwen-max`**  
+The highest-quality model. Produces the most accurate and natural translations, especially for specialized terminology, formal speech, or policy language. Slower response time increases the chance of hitting the L2 fallback on very long sentences — consider raising `TRANSLATE_TIMEOUT` if you use this model.
+
+> All three models respect the terminology dictionary in `gateway/terms.json`. Domain-specific terms are injected into the system prompt on every call, regardless of which model is selected.
+
+---
+
+## Subtitle Screen
+
+The browser display at `http://localhost:8000` shows:
+
+- **Live partial text** — faintly displayed while the speaker is mid-sentence
+- **Finalized captions** — full translation locked in at each sentence boundary
+- Up to 3 completed captions on screen at once; older ones scroll off automatically
+- Clock (top-left) and WebSocket connection status (top-right)
+- Terminology version badge (bottom-right) — confirms the latest `terms.json` is active
+
+**Fullscreen:** Double-click anywhere on the screen to toggle fullscreen.
+
+**Recording:** Click **⏺ 录制** to begin recording all finalized captions. Click **⏹ 停止录制** to stop and download a `.doc` transcript containing timestamps, original text, and translations.
+
+
+
+---
+
+## Fallback Behaviour
+
+The system degrades gracefully under poor network conditions or API errors:
 
 | Level | Trigger | Behaviour |
 |-------|---------|-----------|
-| L1 | Normal | Full AI bilingual captions |
-| L2 | Translation timeout or API rate limit | Shows original Chinese + `[译文生成中...]`, resumes automatically |
-| L3 | ASR disconnect / network loss | Screen holds last subtitle; gateway auto-restarts ASR (3s backoff) |
+| L1 | Normal operation | Full AI bilingual captions |
+| L2 | Translation timeout (>4s) or Qwen API error | Displays original Chinese immediately with `[译文生成中...]`; silently retries and replaces with the translation when it arrives |
+| L3 | ASR disconnect or network loss | Screen holds last subtitle and shows `● 重连中...`; gateway automatically restarts the ASR loop after a 3-second backoff |
+
+The L2 timeout threshold is configurable via `TRANSLATE_TIMEOUT` (default: 4.0 seconds). If you use `qwen-max`, consider increasing this to 6–8 seconds.
 
 ---
 
-## Terminology Customization
+## Monitor Center
 
-Edit `gateway/terms.json` at any time while the service is running:
-```json
-{
-  "国创中心": "National Innovation Center",
-  "新质生产力": "new quality productive forces"
-}
-```
-Changes are detected automatically within ~15 seconds. No restart required.
+For multi-room events, the **Monitor Center** role provides a live LAN dashboard of all active Subtitle Service laptops — no server or cloud infrastructure required.
+
+- Displays room name, online status, screen client count, and terminology version per room
+- Green dot = online; red dot = no heartbeat for 15+ seconds
+- Dashboard refreshes every 3 seconds
+- Discovery uses direct UDP unicast on port 47474 — each service laptop must have the monitor laptop's IP entered in the Monitor IP field
+- The monitor window prominently displays **this computer's IP** to share with session operators
+
+> **Firewall note (Windows):** The app automatically adds a Windows Firewall rule for UDP port 47474 on first launch. If rooms do not appear after 20 seconds, run the app as Administrator once, or allow it manually under Windows Firewall → Allow an app.
 
 ---
 
-## Advanced: Run from Source
+## Run from Source
 
-Requires Python 3.10+ and an Alibaba Cloud DashScope API key.
+Requires Python 3.10+.
 
 ```bash
 pip install -r requirements.txt
@@ -147,7 +199,7 @@ pip install pyinstaller
 python -m PyInstaller build.spec --clean --noconfirm
 ```
 
-Output is in `dist/AIInterpretation/` (Windows) or `dist/AIInterpretation.app` (macOS).
+Output is placed in `dist/AIInterpretation/` (Windows) or `dist/AIInterpretation.app` (macOS).
 
 Automated builds for both platforms run via GitHub Actions on every version tag (`v*`).
 
@@ -155,20 +207,19 @@ Automated builds for both platforms run via GitHub Actions on every version tag 
 
 ## Configuration Reference
 
-Environment variables passed through the UI or set in `gateway/.env`:
-
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DASHSCOPE_API_KEY` | *(required)* | Alibaba Cloud DashScope key |
+| `DASHSCOPE_API_KEY` | *(required)* | Alibaba Cloud DashScope API key |
 | `LANG_PAIR` | `zh-en` | Language pair: `zh-en` or `zh-ja` |
-| `DISPLAY_MODE` | `en` | What to show: `en` (translated only), `zh` (original only), `both` |
-| `ZH_FONT_SIZE` | `30` | Font size in px for original-language text |
-| `EN_FONT_SIZE` | `30` | Font size in px for translated text |
-| `ZH_COLOR` | `#ffff00` | Color for original-language text |
+| `ASR_MODEL` | `paraformer-realtime-v2` | ASR model (see [ASR Models](#asr-models)) |
+| `TRANSLATE_MODEL` | `qwen-plus` | Translation model (see [Translation Models](#translation-models)) |
+| `TRANSLATE_TIMEOUT` | `4.0` | Seconds before L2 fallback triggers |
+| `DISPLAY_MODE` | `both` | `en` (translated only), `zh` (original only), `both` |
+| `ZH_FONT_SIZE` | `30` | Font size (px) for original-language text |
+| `EN_FONT_SIZE` | `30` | Font size (px) for translated text |
+| `ZH_COLOR` | `#7dd3fc` | Color for original-language text |
 | `EN_COLOR` | `#4ade80` | Color for translated text |
 | `BG_COLOR` | `#000000` | Screen background color |
-| `TRANSLATE_MODEL` | `qwen-plus` | Qwen model: `qwen-turbo` / `qwen-plus` / `qwen-max` |
-| `TRANSLATE_TIMEOUT` | `4.0` | Seconds before L2 fallback |
 | `PORT` | `8000` | HTTP and WebSocket port |
 | `DISABLE_AUDIO` | *(unset)* | Set to `1` to disable microphone (test mode) |
 | `PYAUDIO_DEVICE_INDEX` | *(system default)* | Audio input device index |
