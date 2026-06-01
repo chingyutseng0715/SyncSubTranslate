@@ -162,7 +162,7 @@ class MainWindow(ctk.CTkToplevel):
         self._nav_btns["settings"] = settings_btn
         self._dyn.append((settings_btn, lambda: f"  ⚙   {t('settings')}"))
 
-        _r(ctk.CTkLabel(sb, text="v1.1.21",
+        _r(ctk.CTkLabel(sb, text="v1.1.22",
                         font=ctk.CTkFont(size=10), text_color=_TEXT3),
            text_color="TEXT3").grid(row=5, column=0, pady=(0, 14))
 

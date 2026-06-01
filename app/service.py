@@ -760,7 +760,13 @@ class ServiceView(ctk.CTkFrame):
     def _poll_health(self) -> None:
         time.sleep(4)
         failures = 0
-        while not self._health_stop.is_set() and self._runner.running:
+        while not self._health_stop.is_set():
+            if not self._runner.running:
+                # Subprocess exited unexpectedly (e.g. port conflict, crash).
+                # Runs in main thread via after() so it checks _health_stop again
+                # to avoid overwriting "stopped" if the user pressed Stop first.
+                self.after(0, self._on_gateway_crashed)
+                break
             try:
                 with urllib.request.urlopen("http://localhost:8000/health", timeout=2) as r:
                     self._health = json.loads(r.read())
@@ -776,6 +782,11 @@ class ServiceView(ctk.CTkFrame):
                     self.after(0, lambda: self._status_lbl.configure(
                         text=t("status_no_gw"), text_color="#dc2626"))
             self._health_stop.wait(5)
+
+    def _on_gateway_crashed(self) -> None:
+        if not self._health_stop.is_set():
+            self._status_key = "status_no_gw"
+            self._status_lbl.configure(text=t("status_no_gw"), text_color="#dc2626")
 
     def _get_status(self) -> dict:
         return {

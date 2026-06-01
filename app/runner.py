@@ -8,6 +8,41 @@ from typing import Callable
 
 BASE_DIR = Path(__file__).parent.parent
 GATEWAY_SCRIPT = BASE_DIR / "gateway" / "main.py"
+GATEWAY_PORT = 8000
+
+
+def _release_port(port: int) -> None:
+    """Force-kill any process still holding the given TCP port."""
+    if sys.platform == "win32":
+        try:
+            out = subprocess.check_output(
+                ["netstat", "-ano"],
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            for line in out.splitlines():
+                if f":{port}" in line and "LISTENING" in line:
+                    parts = line.split()
+                    pid = parts[-1]
+                    if pid.isdigit() and int(pid) > 4:
+                        subprocess.run(
+                            ["taskkill", "/F", "/PID", pid],
+                            capture_output=True,
+                            creationflags=subprocess.CREATE_NO_WINDOW,
+                        )
+        except Exception:
+            pass
+    else:
+        try:
+            result = subprocess.run(
+                ["lsof", "-ti", f":{port}"],
+                capture_output=True, text=True,
+            )
+            for pid in result.stdout.split():
+                if pid.strip().isdigit():
+                    subprocess.run(["kill", "-9", pid.strip()], capture_output=True)
+        except Exception:
+            pass
 
 
 class GatewayRunner:
@@ -27,6 +62,7 @@ class GatewayRunner:
               on_line: Callable[[str], None] | None = None) -> None:
         if self.running:
             return
+        _release_port(GATEWAY_PORT)  # evict any orphaned gateway from a prior session
 
         idx = str(device_index) if device_index is not None else "none"
         env = os.environ.copy()
@@ -84,6 +120,7 @@ class GatewayRunner:
             except subprocess.TimeoutExpired:
                 self._proc.kill()
         self._proc = None
+        _release_port(GATEWAY_PORT)  # catch zombies the subprocess kill may have missed
 
     def _stream(self, on_line: Callable[[str], None] | None) -> None:
         try:
