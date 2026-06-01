@@ -573,11 +573,22 @@ def _run_realtime_asr_loop() -> None:
                     "modalities": ["text"],
                     "input_audio_format": "pcm",
                     "sample_rate": 16000,
-                    "input_audio_transcription": {"language": "zh"},
+                    "input_audio_transcription": {"language": "zh",
+                    "corpus":{
+                        "text":"研发",
+                        "text":"古元冬",
+                        "text":"顾星",
+                        "text":"刘庆",
+                        "text":"逯高清",
+                        "text":"肖千",
+                        "text":"江舸",
+                        
+
+                    },},
                     "turn_detection": {
                         "type": "server_vad",
                         "threshold": 0.2,
-                        "silence_duration_ms": 500,
+                        "silence_duration_ms": 800,
                     },
                 },
             }
