@@ -577,7 +577,7 @@ def _run_realtime_asr_loop() -> None:
                     "turn_detection": {
                         "type": "server_vad",
                         "threshold": 0.2,
-                        "silence_duration_ms": 800,
+                        "silence_duration_ms": 500,
                     },
                 },
             }
