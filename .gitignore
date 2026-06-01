@@ -1,5 +1,6 @@
-# API keys — never commit
+# API keys / user secrets — never commit
 gateway/.env
+last_settings.json
 
 # Runtime output
 logs/
